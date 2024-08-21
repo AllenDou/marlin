@@ -220,15 +220,15 @@ __global__ void Marlin(
     prob_m = 16 * thread_m_blocks; // 16*4 = 64
   }
 
-  int k_tiles = prob_k / 16 / thread_k_blocks; // 4096/16/4 = 64
-  int n_tiles = prob_n / 16 / thread_n_blocks; // 4096/16/16 = 16
+  int k_tiles = prob_k / 16 / thread_k_blocks/*64*/; // 4096/16/4  = 64
+  int n_tiles = prob_n / 16 / thread_n_blocks/*16*/; // 4096/16/16 = 16
   if (0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && \
   threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
-    printf("\rgridDim:x=%d gridDim.y=%d gridDim.z=%d \
+    printf("\r>gridDim:x=%d gridDim.y=%d gridDim.z=%d \
 blockDim.x=%d blockDim.y=%d blockDim.z=%d \
 blockIdx.x=%d blockIdx.y=%d blockIdx.z=%d \
 threadIdx.x=%d threadIdx.y=%d threadIdx.z=%d\n\
-prob_m=%d prob_n=%d prob_k=%d \
+ prob_m=%d prob_n=%d prob_k=%d \
 threads=%d thread_m_blocks=%d thread_n_blocks=%d thread_k_blocks=%d stages=%d group_blocks=%d \
 k_tiles=%d n_tiles=%d parallel=%d", \
   gridDim.x, gridDim.y, gridDim.z, \
@@ -246,10 +246,11 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   if (group_blocks /*8*/ != -1)
     iters = (group_blocks /*8*/ / thread_k_blocks/*4*/) * ceildiv(iters/*179*/, (group_blocks / thread_k_blocks));
     // iters = 180
-
-  int slice_row = (iters * blockIdx.x) % k_tiles/*64*/;
-  int slice_col_par = (iters * blockIdx.x) / k_tiles/*64*/;
-  int slice_col = slice_col_par;
+  
+  // by zixiao, assume blockIdx.x == 1
+  int slice_row /*52*/ = (iters * blockIdx.x) % k_tiles/*64*/;
+  int slice_col_par /*2*/ = (iters * blockIdx.x) / k_tiles/*64*/;
+  int slice_col /*2*/ = slice_col_par;
   int slice_iters; // number of threadblock tiles in the current slice
   int slice_count = 0; // total number of active threadblocks in the current slice
   int slice_idx; // index of threadblock in current slice; numbered bottom to top
@@ -264,8 +265,8 @@ k_tiles=%d n_tiles=%d parallel=%d", \
 
   // Compute all information about the current slice which is required for synchronization.
   auto init_slice = [&] () {
-    slice_iters = iters * (blockIdx.x + 1) - (k_tiles * slice_col_par + slice_row);
-    if (slice_iters < 0 || slice_col_par >= n_tiles * parallel)
+    slice_iters = iters * (blockIdx.x + 1) - (k_tiles/*64*/ * slice_col_par + slice_row);
+    if (slice_iters < 0 || slice_col_par >= n_tiles/*16*/ * parallel)
       slice_iters = 0;
     if (slice_iters == 0)
       return;
@@ -289,13 +290,20 @@ k_tiles=%d n_tiles=%d parallel=%d", \
       }
     }
     if (slice_col == n_tiles) {
-      A += 16 * thread_m_blocks * prob_k / 8;
-      C += 16 * thread_m_blocks * prob_n / 8;
+      A += 16 * thread_m_blocks /*4*/ * prob_k / 8;
+      C += 16 * thread_m_blocks /*4*/ * prob_n / 8;
       locks += n_tiles;
       slice_col = 0;
     }
   };
   init_slice();
+
+  if (0 && blockIdx.x == 91 && blockIdx.y == 0 && blockIdx.z == 0 && \
+  threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
+    printf("\r>slice_row=%d slice_col=%d slice_iters=%d slice_count=%d slice_idx=%d",
+    slice_row, slice_col, slice_iters, slice_count, slice_idx);
+  }
+
 
   int a_gl_stride /*512*/ = prob_k /*4096*/ / 8; // stride of the A matrix in global memory
   // We typically use `constexpr` to indicate that this value is a compile-time constant
@@ -336,9 +344,9 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   int a_gl_rd = a_gl_stride * (threadIdx.x / a_gl_rd_delta_o) + (threadIdx.x % a_gl_rd_delta_o);
   a_gl_rd += a_gl_rd_delta_o * slice_row;
   // Shared write index of current thread.
-  int a_sh_wr = a_sh_stride * (threadIdx.x / a_gl_rd_delta_o) + (threadIdx.x % a_gl_rd_delta_o);
+  int a_sh_wr = a_sh_stride/*8*/ * (threadIdx.x / a_gl_rd_delta_o) + (threadIdx.x % a_gl_rd_delta_o);
   // Shared read index.
-  int a_sh_rd = a_sh_stride * ((threadIdx.x % 32) % 16) + (threadIdx.x % 32) / 16;
+  int a_sh_rd = a_sh_stride/*8*/ * ((threadIdx.x % 32) % 16) + (threadIdx.x % 32) / 16;
   a_sh_rd += 2 * ((threadIdx.x / 32) / (thread_n_blocks / 4));
 
   int b_gl_rd = b_gl_stride * (threadIdx.x / b_sh_stride) + (threadIdx.x % b_sh_stride);
@@ -362,7 +370,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   bool a_sh_wr_pred[a_sh_wr_iters];
   #pragma unroll
   for (int i = 0; i < a_sh_wr_iters; i++)
-    a_sh_wr_pred[i] = a_sh_wr_delta * i + a_sh_wr < a_sh_stride * prob_m;
+    a_sh_wr_pred[i] = a_sh_wr_delta/*256*/ * i + a_sh_wr < a_sh_stride/*8*/ * prob_m/*64*/;
   bool s_sh_wr_pred = threadIdx.x < s_sh_stride;
 
   // To ensure that writing and reading A tiles to/from shared memory, the latter in fragment format, is fully bank
@@ -767,7 +775,7 @@ int marlin_cuda(
   int prob_n,
   int prob_k,
   void* workspace,
-  int groupsize = -1,
+  int groupsize = -1, /*128*/
   int dev = 0,
   cudaStream_t stream = 0,
   int thread_k = -1,
