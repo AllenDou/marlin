@@ -187,22 +187,22 @@ __device__ inline void barrier_release(int* lock, bool reset = false) {
 
 
 template <
-  const int threads, // number of threads in a threadblock
-  const int thread_m_blocks, // number of 16x16 blocks in the m dimension (batchsize) of the threadblock 
-  const int thread_n_blocks, // same for n dimension (output) 
-  const int thread_k_blocks, // same for k dimension (reduction)
-  const int stages, // number of stages for the async global->shared fetch pipeline
-  const int group_blocks = -1 // number of consecutive 16x16 blocks with a separate quantization scale
+  const int threads /*256*/, // number of threads in a threadblock
+  const int thread_m_blocks /*4*/, // number of 16x16 blocks in the m dimension (batchsize) of the threadblock 
+  const int thread_n_blocks /*16*/, // same for n dimension (output) 
+  const int thread_k_blocks /*4*/, // same for k dimension (reduction)
+  const int stages /*4*/, // number of stages for the async global->shared fetch pipeline
+  const int group_blocks = -1 /*8*/ // number of consecutive 16x16 blocks with a separate quantization scale
 >
 __global__ void Marlin(
   const int4* __restrict__ A, // fp16 input matrix of shape mxk 
   const int4* __restrict__ B, // 4bit quantized weight matrix of shape kxn 
         int4* __restrict__ C, // fp16 output buffer of shape mxn
   const int4* __restrict__ s, // fp16 quantization scales of shape (k/groupsize)xn 
-  int  prob_m, // batch dimension m
-  int  prob_n, // output dimension n
-  int  prob_k, // reduction dimension k
-  int* locks // extra global storage for barrier synchronization 
+  int  prob_m /*1024*/, // batch dimension m
+  int  prob_n /*4096*/, // output dimension n
+  int  prob_k /*4096*/, // reduction dimension k
+  int* locks  /* 0 * 512*/// extra global storage for barrier synchronization 
 ) {
   // Each threadblock processes one "stripe" of the B matrix with (roughly) the same size, which might involve multiple 
   // column "slices" (of width 16 * `thread_n_blocks`). Stripes are defined as shown in the 3x3 matrix 5 SM example: 
@@ -215,28 +215,47 @@ __global__ void Marlin(
   
   // For larger GEMMs we run multiple batchsize 64 versions in parallel for a better partitioning with less reductions
   int parallel = 1;
-  if (prob_m > 16 * thread_m_blocks) {
-    parallel = prob_m / (16 * thread_m_blocks);
-    prob_m = 16 * thread_m_blocks;
+  if (prob_m /*1024*/ > 16 * thread_m_blocks) {
+    parallel = prob_m / (16 * thread_m_blocks); // 1024/(16*4) = 16
+    prob_m = 16 * thread_m_blocks; // 16*4 = 64
   }
 
-  int k_tiles = prob_k / 16 / thread_k_blocks;
-  int n_tiles = prob_n / 16 / thread_n_blocks;
-  int iters = ceildiv(k_tiles * n_tiles * parallel, gridDim.x);
+  int k_tiles = prob_k / 16 / thread_k_blocks; // 4096/16/4 = 64
+  int n_tiles = prob_n / 16 / thread_n_blocks; // 4096/16/16 = 16
+  if (0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && \
+  threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
+    printf("\rgridDim:x=%d gridDim.y=%d gridDim.z=%d \
+blockDim.x=%d blockDim.y=%d blockDim.z=%d \
+blockIdx.x=%d blockIdx.y=%d blockIdx.z=%d \
+threadIdx.x=%d threadIdx.y=%d threadIdx.z=%d\n\
+prob_m=%d prob_n=%d prob_k=%d \
+threads=%d thread_m_blocks=%d thread_n_blocks=%d thread_k_blocks=%d stages=%d group_blocks=%d \
+k_tiles=%d n_tiles=%d parallel=%d", \
+  gridDim.x, gridDim.y, gridDim.z, \
+  blockDim.x, blockDim.y, blockDim.z, \
+  blockIdx.x, blockIdx.y, blockIdx.z, \
+  threadIdx.x, threadIdx.y, threadIdx.z,\
+  prob_m, prob_n, prob_k, \
+  threads, thread_m_blocks, thread_n_blocks, thread_k_blocks, stages, group_blocks,\
+  k_tiles, n_tiles, parallel);
+  }
+
+  int iters = ceildiv(k_tiles/*64*/ * n_tiles/*16*/ * parallel/*16*/, gridDim.x/*92*/); // 64*16*16, 92 = 179 
   // Ensure that the number of tiles in each stripe is a multiple of the groupsize; this avoids an annoying special case
   // where a stripe starts in the middle of group.
-  if (group_blocks != -1)
-    iters = (group_blocks / thread_k_blocks) * ceildiv(iters, (group_blocks / thread_k_blocks));
+  if (group_blocks /*8*/ != -1)
+    iters = (group_blocks /*8*/ / thread_k_blocks/*4*/) * ceildiv(iters/*179*/, (group_blocks / thread_k_blocks));
+    // iters = 180
 
-  int slice_row = (iters * blockIdx.x) % k_tiles;
-  int slice_col_par = (iters * blockIdx.x) / k_tiles;
+  int slice_row = (iters * blockIdx.x) % k_tiles/*64*/;
+  int slice_col_par = (iters * blockIdx.x) / k_tiles/*64*/;
   int slice_col = slice_col_par;
   int slice_iters; // number of threadblock tiles in the current slice
   int slice_count = 0; // total number of active threadblocks in the current slice
   int slice_idx; // index of threadblock in current slice; numbered bottom to top
 
   // We can easily implement parallel problem execution by just remapping indices and advancing global pointers
-  if (slice_col_par >= n_tiles) {
+  if (slice_col_par >= n_tiles/*16*/) {
     A += (slice_col_par / n_tiles) * 16 * thread_m_blocks * prob_k / 8;
     C += (slice_col_par / n_tiles) * 16 * thread_m_blocks * prob_n / 8;
     locks += (slice_col_par / n_tiles) * n_tiles;
@@ -278,30 +297,40 @@ __global__ void Marlin(
   };
   init_slice();
 
-  int a_gl_stride = prob_k / 8; // stride of the A matrix in global memory
+  int a_gl_stride /*512*/ = prob_k /*4096*/ / 8; // stride of the A matrix in global memory
   // We typically use `constexpr` to indicate that this value is a compile-time constant
-  constexpr int a_sh_stride = 16 * thread_k_blocks / 8; // stride of an A matrix tile in shared memory
-  constexpr int a_gl_rd_delta_o = 16 * thread_k_blocks / 8; // delta between subsequent A tiles in global memory
-  int a_gl_rd_delta_i = a_gl_stride * (threads / a_gl_rd_delta_o); // between subsequent accesses within a tile
-  constexpr int a_sh_wr_delta = a_sh_stride * (threads / a_gl_rd_delta_o); // between shared memory writes
-  constexpr int a_sh_rd_delta_o = 2 * ((threads / 32) / (thread_n_blocks / 4)); // between shared memory tile reads
-  constexpr int a_sh_rd_delta_i = a_sh_stride * 16; // within a shared memory tile
-  constexpr int a_sh_stage = a_sh_stride * (16 * thread_m_blocks); // overall size of a tile
-  constexpr int a_sh_wr_iters = ceildiv(a_sh_stage, a_sh_wr_delta); // number of shared write iterations for a tile
+  constexpr int a_sh_stride /*8*/ = 16 * thread_k_blocks/*4*/ / 8; // stride of an A matrix tile in shared memory
+  constexpr int a_gl_rd_delta_o /*8*/ = 16 * thread_k_blocks/*4*/ / 8; // delta between subsequent A tiles in global memory
+  int a_gl_rd_delta_i /*16384*/ = a_gl_stride * (threads /*256*/ / a_gl_rd_delta_o); // between subsequent accesses within a tile
+  constexpr int a_sh_wr_delta /*256*/ = a_sh_stride * (threads / a_gl_rd_delta_o); // between shared memory writes
+  constexpr int a_sh_rd_delta_o /*4*/ = 2 * ((threads / 32) / (thread_n_blocks/*16*/ / 4)); // between shared memory tile reads
+  constexpr int a_sh_rd_delta_i /*128*/ = a_sh_stride * 16; // within a shared memory tile
+  constexpr int a_sh_stage /*512*/= a_sh_stride * (16 * thread_m_blocks); // overall size of a tile
+  constexpr int a_sh_wr_iters /*2*/ = ceildiv(a_sh_stage, a_sh_wr_delta); // number of shared write iterations for a tile
 
-  int b_gl_stride = 16 * prob_n / 32;
-  constexpr int b_sh_stride = 32 * thread_n_blocks / 4;
-  int b_gl_rd_delta_o = b_gl_stride * thread_k_blocks;
-  int b_gl_rd_delta_i = b_gl_stride * (threads / b_sh_stride);
-  constexpr int b_sh_wr_delta = threads;
-  constexpr int b_sh_rd_delta = threads;
-  constexpr int b_sh_stage = b_sh_stride * thread_k_blocks;
-  constexpr int b_sh_wr_iters = b_sh_stage / b_sh_wr_delta;
+  int b_gl_stride /*2048*/ = 16 * prob_n/*4096*/ / 32;
+  constexpr int b_sh_stride /*128*/ = 32 * thread_n_blocks/*16*/ / 4;
+  int b_gl_rd_delta_o /*8196*/ = b_gl_stride /*2048*/ * thread_k_blocks /*4*/;
+  int b_gl_rd_delta_i /*4096*/ = b_gl_stride * (threads / b_sh_stride);
+  constexpr int b_sh_wr_delta /*256*/ = threads;
+  constexpr int b_sh_rd_delta /*256*/ = threads;
+  constexpr int b_sh_stage /*512*/ = b_sh_stride * thread_k_blocks;
+  constexpr int b_sh_wr_iters /*2*/ = b_sh_stage / b_sh_wr_delta;
 
-  int s_gl_stride = prob_n / 8;
-  constexpr int s_sh_stride = 16 * thread_n_blocks / 8;
-  constexpr int s_sh_stage = s_sh_stride;
-  int s_gl_rd_delta = s_gl_stride;
+  int s_gl_stride /*512*/ = prob_n / 8;
+  constexpr int s_sh_stride /*32*/ = 16 * thread_n_blocks / 8;
+  constexpr int s_sh_stage /*32*/ = s_sh_stride;
+  int s_gl_rd_delta /*512*/ = s_gl_stride;
+
+  if (0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && \
+  threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
+    printf("a_sh_stride=%d a_gl_rd_delta_o=%d a_gl_rd_delta_i=%d a_sh_wr_delta=%d a_sh_rd_delta_o=%d a_sh_rd_delta_i=%d, \n\
+a_sh_stage=%d a_sh_wr_iters=%d b_gl_stride=%d b_sh_stride=%d b_gl_rd_delta_o=%d b_gl_rd_delta_i=%d b_sh_wr_delta=%d, \n\
+b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_sh_stage=%d s_gl_rd_delta=%d \n",
+  a_sh_stride, a_gl_rd_delta_o, a_gl_rd_delta_i, a_sh_wr_delta, a_sh_rd_delta_o, a_sh_rd_delta_i, \
+  a_sh_stage, a_sh_wr_iters, b_gl_stride, b_sh_stride, b_gl_rd_delta_o, b_gl_rd_delta_i, b_sh_wr_delta, \
+  b_sh_rd_delta, b_sh_stage, b_sh_wr_iters, s_gl_stride, s_sh_stride, s_sh_stage, s_gl_rd_delta);
+  }
 
   // Global A read index of current thread.
   int a_gl_rd = a_gl_stride * (threadIdx.x / a_gl_rd_delta_o) + (threadIdx.x % a_gl_rd_delta_o);
@@ -706,21 +735,22 @@ const int THREADS = 256;
 const int STAGES = 4; // 4 pipeline stages fit into shared memory
 const int SHARED_MEM = 96 * 1024; // max shared memory on compute capability 8.6 (< 8.0)
 
-#define CALL_IF(THREAD_M_BLOCKS, THREAD_N_BLOCKS, THREAD_K_BLOCKS, GROUP_BLOCKS) \
+// CALL_IF(4, 16,  4,  8)
+#define CALL_IF(THREAD_M_BLOCKS/*4*/, THREAD_N_BLOCKS/*16*/, THREAD_K_BLOCKS/*4*/, GROUP_BLOCKS/*8*/) \
   else if ( \
-    thread_m_blocks == THREAD_M_BLOCKS && thread_n_blocks == THREAD_N_BLOCKS && thread_k_blocks == THREAD_K_BLOCKS && \
-    group_blocks == GROUP_BLOCKS \
+    thread_m_blocks == THREAD_M_BLOCKS && thread_n_blocks == THREAD_N_BLOCKS && \
+    thread_k_blocks == THREAD_K_BLOCKS && group_blocks == GROUP_BLOCKS \
   ) { \
     cudaFuncSetAttribute( \
       Marlin<THREADS, THREAD_M_BLOCKS, THREAD_N_BLOCKS, THREAD_K_BLOCKS, STAGES, GROUP_BLOCKS>, \
       cudaFuncAttributeMaxDynamicSharedMemorySize, \
       SHARED_MEM \
     ); \
-    Marlin< \
+    Marlin< /* called 25600/1024 = 25 times */\
       THREADS, THREAD_M_BLOCKS, THREAD_N_BLOCKS, THREAD_K_BLOCKS, STAGES, GROUP_BLOCKS \
-    ><<<blocks, THREADS, SHARED_MEM, stream>>>( \
+    ><<<blocks/*=92(sm)*/, THREADS, SHARED_MEM, stream/*0*/>>>( \
       A_ptr, B_ptr, C_ptr, s_ptr, \
-      prob_m, prob_n, prob_k, \
+      prob_m/*1024*/, prob_n/*4096*/, prob_k/*4096*/, \
       locks \
     ); \
   }
@@ -745,12 +775,12 @@ int marlin_cuda(
   int sms = -1,
   int max_par = 16
 ) {
-  int tot_m = prob_m;
-  int tot_m_blocks = ceildiv(tot_m, 16);
-  int pad = 16 * tot_m_blocks - tot_m;
+  int tot_m = prob_m; // 25600
+  int tot_m_blocks = ceildiv(tot_m, 16); // 25600/16 = 1600
+  int pad = 16 * tot_m_blocks - tot_m; // 16*1600 - 25600 = 0
 
   if (sms == -1)
-    cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, dev);
+    cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, dev); // L20: sms = 92
   if (thread_k == -1 || thread_n == -1) {
     if (prob_m <= 16) {
       // For small batchizes, better partioning is slightly more important than better compute utilization
@@ -762,10 +792,14 @@ int marlin_cuda(
     }
   }
 
-  int thread_k_blocks = thread_k / 16;
-  int thread_n_blocks = thread_n / 16;
-  int group_blocks = (groupsize == -1) ? -1 : groupsize / 16;
-  int blocks = sms;
+  thread_k = 64;
+  thread_n = 256;
+
+  int thread_k_blocks = thread_k / 16; // 64/16 = 4
+  int thread_n_blocks = thread_n / 16; // 256/16 = 16
+  int group_blocks = (groupsize == -1) ? -1 : groupsize / 16; // 128/16 = 8
+  int blocks = sms; // = 92
+
 
   if (prob_n % thread_n != 0 || prob_k % thread_k != 0 || (group_blocks != -1 && prob_k % group_blocks != 0))
     return ERR_PROB_SHAPE;
@@ -777,13 +811,14 @@ int marlin_cuda(
   int4* C_ptr = (int4*) C;
   const int4* s_ptr = (const int4*) s;
 
-  int cols = prob_n / thread_n;
-  int* locks = (int*) workspace;
+  int cols = prob_n / thread_n; // 4096/256 = 16
+  int* locks = (int*) workspace; // see workspace = torch.zeros(n // 128 * 16, device=DEV)
+                                 // 512 个 0
 
   int ret = 0;
-  for (int i = 0; i < tot_m_blocks; i += 4) {
+  for (int i = 0; i < tot_m_blocks/*1600*/; i += 4) {
     int thread_m_blocks = tot_m_blocks - i;
-    prob_m = tot_m - 16 * i;
+    prob_m = tot_m/*25600*/ - 16 * i;
     int par = 1;
     if (thread_m_blocks > 4) {
       // Note that parallel > 1 currently only works for inputs without any padding
@@ -794,22 +829,22 @@ int marlin_cuda(
       i += 4 * (par - 1);
       thread_m_blocks = 4;
     }
-    
+
+    //printf("prob_m=%d, prob_n=%d, prob_k=%d\n", prob_m, prob_n, prob_k);
+
     // For compilation speed, we only define the kernel configurations that have seemed useful (in terms of performance)
     // in our testing, however many more are, in principle, possible.
     if (false) {}
-    CALL_IF(1,  8,  8, -1)
-    CALL_IF(1,  8,  8,  8)
-    CALL_IF(1, 16,  4, -1)
-    CALL_IF(1, 16,  4,  8)
-    CALL_IF(2, 16,  4, -1)
-    CALL_IF(2, 16,  4,  8)
-    CALL_IF(3, 16,  4, -1)
-    CALL_IF(3, 16,  4,  8)
-    CALL_IF(4, 16,  4, -1)
+    //CALL_IF(1,  8,  8, -1)
+    //CALL_IF(1,  8,  8,  8)
+    //CALL_IF(1, 16,  4, -1)
+    //CALL_IF(1, 16,  4,  8)
+    //CALL_IF(2, 16,  4, -1)
+    //CALL_IF(2, 16,  4,  8)
+    //CALL_IF(3, 16,  4, -1)
+    //CALL_IF(3, 16,  4,  8)
+    //CALL_IF(4, 16,  4, -1)
     CALL_IF(4, 16,  4,  8)
-    else
-      ret = ERR_KERN_SHAPE;
 
     A_ptr += 16 * thread_m_blocks * (prob_k / 8) * par;
     C_ptr += 16 * thread_m_blocks * (prob_n / 8) * par;
