@@ -220,8 +220,8 @@ __global__ void Marlin(
     prob_m = 16 * thread_m_blocks; // 16*4 = 64
   }
 
-  int k_tiles = prob_k / 16 / thread_k_blocks/*64*/; // 4096/16/4  = 64
-  int n_tiles = prob_n / 16 / thread_n_blocks/*16*/; // 4096/16/16 = 16
+  int k_tiles = prob_k / 16 / thread_k_blocks/*4*/; // 4096/16/4   = 64   16个数一个单位
+  int n_tiles = prob_n / 16 / thread_n_blocks/*16*/; // 4096/16/16 = 16   16个数一个单位
   if (0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && \
   threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
     printf("\r>gridDim:x=%d gridDim.y=%d gridDim.z=%d \
@@ -248,8 +248,8 @@ k_tiles=%d n_tiles=%d parallel=%d", \
     // iters = 180
   
   // by zixiao, assume blockIdx.x == 1
-  int slice_row /*52*/ = (iters * blockIdx.x) % k_tiles/*64*/;
-  int slice_col_par /*2*/ = (iters * blockIdx.x) / k_tiles/*64*/;
+  int slice_row /*52*/ = (iters * blockIdx.x /* 0-91 */) % k_tiles/*64*/;
+  int slice_col_par /*2*/ = (iters * blockIdx.x /* 0-91 */) / k_tiles/*64*/;
   int slice_col /*2*/ = slice_col_par;
   int slice_iters; // number of threadblock tiles in the current slice
   int slice_count = 0; // total number of active threadblocks in the current slice
@@ -298,13 +298,14 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   };
   init_slice();
 
-  if (0 && blockIdx.x == 91 && blockIdx.y == 0 && blockIdx.z == 0 && \
+  if (1 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && \
   threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
     printf("\r>slice_row=%d slice_col=%d slice_iters=%d slice_count=%d slice_idx=%d",
     slice_row, slice_col, slice_iters, slice_count, slice_idx);
   }
 
 
+  /* A related. */
   int a_gl_stride /*512*/ = prob_k /*4096*/ / 8; // stride of the A matrix in global memory
   // We typically use `constexpr` to indicate that this value is a compile-time constant
   constexpr int a_sh_stride /*8*/ = 16 * thread_k_blocks/*4*/ / 8; // stride of an A matrix tile in shared memory
@@ -316,6 +317,7 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   constexpr int a_sh_stage /*512*/= a_sh_stride * (16 * thread_m_blocks); // overall size of a tile
   constexpr int a_sh_wr_iters /*2*/ = ceildiv(a_sh_stage, a_sh_wr_delta); // number of shared write iterations for a tile
 
+  /* B related. */
   int b_gl_stride /*2048*/ = 16 * prob_n/*4096*/ / 32;
   constexpr int b_sh_stride /*128*/ = 32 * thread_n_blocks/*16*/ / 4;
   int b_gl_rd_delta_o /*8196*/ = b_gl_stride /*2048*/ * thread_k_blocks /*4*/;
@@ -325,6 +327,7 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   constexpr int b_sh_stage /*512*/ = b_sh_stride * thread_k_blocks;
   constexpr int b_sh_wr_iters /*2*/ = b_sh_stage / b_sh_wr_delta;
 
+  /* scale related. */
   int s_gl_stride /*512*/ = prob_n / 8;
   constexpr int s_sh_stride /*32*/ = 16 * thread_n_blocks / 8;
   constexpr int s_sh_stage /*32*/ = s_sh_stride;
@@ -781,7 +784,7 @@ int marlin_cuda(
   int thread_k = -1,
   int thread_n = -1,
   int sms = -1,
-  int max_par = 16
+  int max_par = 16 /*16*/
 ) {
   int tot_m = prob_m; // 25600
   int tot_m_blocks = ceildiv(tot_m, 16); // 25600/16 = 1600
@@ -803,7 +806,7 @@ int marlin_cuda(
   thread_k = 64;
   thread_n = 256;
 
-  int thread_k_blocks = thread_k / 16; // 64/16 = 4
+  int thread_k_blocks = thread_k / 16; // 64/16 = 4      THREADS=256=16x16, 相当于k n维度各16个线程
   int thread_n_blocks = thread_n / 16; // 256/16 = 16
   int group_blocks = (groupsize == -1) ? -1 : groupsize / 16; // 128/16 = 8
   int blocks = sms; // = 92
