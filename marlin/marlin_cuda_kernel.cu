@@ -202,7 +202,7 @@ __global__ void Marlin(
   int  prob_m /*1024*/, // batch dimension m
   int  prob_n /*4096*/, // output dimension n
   int  prob_k /*4096*/, // reduction dimension k
-  int* locks  /* 0 * 512*/// extra global storage for barrier synchronization 
+  int* locks /* 0 * 512*/// extra global storage for barrier synchronization 
 ) {
   // Each threadblock processes one "stripe" of the B matrix with (roughly) the same size, which might involve multiple 
   // column "slices" (of width 16 * `thread_n_blocks`). Stripes are defined as shown in the 3x3 matrix 5 SM example: 
@@ -255,6 +255,11 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   int slice_count = 0; // total number of active threadblocks in the current slice
   int slice_idx; // index of threadblock in current slice; numbered bottom to top
 
+  int tmp_col_first = -99;
+  int tmp_col_off = -99;
+  int tmp_delta_first = -99;
+  int tmp_slice_count = -99;
+  int tmp_slice_idx = -99;
   // We can easily implement parallel problem execution by just remapping indices and advancing global pointers
   if (slice_col_par >= n_tiles/*16*/) {
     A += (slice_col_par / n_tiles) * 16 * thread_m_blocks * prob_k / 8;
@@ -288,6 +293,15 @@ k_tiles=%d n_tiles=%d parallel=%d", \
         if (col_off > 0)
           slice_idx--;
       }
+      tmp_col_first = col_first;
+      tmp_col_off = col_off;
+      tmp_delta_first = delta_first;
+      tmp_slice_count = slice_count;
+      tmp_slice_idx = slice_idx;
+    }
+    if (0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 ) {
+      printf("\r>col_first=%d col_off=%d delta_first=%d slice_count=%d slice_idx=%d",
+      tmp_col_first, tmp_col_off, tmp_delta_first, tmp_slice_count, tmp_slice_idx);
     }
     if (slice_col == n_tiles) {
       A += 16 * thread_m_blocks /*4*/ * prob_k / 8;
@@ -298,11 +312,11 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   };
   init_slice();
 
-  if (1 && blockIdx.x == 3 && blockIdx.y == 0 && blockIdx.z == 0 ) {
-    // don't print threadIdx, because code above don't use threadIdx
-    printf("\r>slice_row=%d slice_col=%d slice_col_par=%d slice_iters=%d slice_count=%d slice_idx=%d",
-    slice_row, slice_col, slice_col_par, slice_iters, slice_count, slice_idx);
-  }
+  //if (1 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 ) {
+  //  // don't print threadIdx, because code above don't use threadIdx
+  //  printf("\r>slice_row=%d slice_col=%d slice_col_par=%d slice_iters=%d slice_count=%d slice_idx=%d tmp_col_first=%d tmp_col_off=%d tmp_delta_first=%d",
+  //  slice_row, slice_col, slice_col_par, slice_iters, tmp_slice_count, tmp_slice_idx, tmp_col_first, tmp_col_off, tmp_delta_first);
+  //}
 
 
   /* A related. */
@@ -554,7 +568,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   auto global_reduce = [&] (bool first = false, bool last = false) {
     // We are very careful here to reduce directly in the output buffer to maximize L2 cache utilization in this step. 
     // To do this, we write out results in FP16 (but still reduce with FP32 compute).
-    constexpr int active_threads = 32 * thread_n_blocks / 4;
+    constexpr int active_threads /*128*/ = 32 * thread_n_blocks/*16*/ / 4;
     if (threadIdx.x < active_threads) {
       int c_gl_stride = prob_n / 8;
       int c_gl_wr_delta_o = 8 * c_gl_stride;
@@ -674,9 +688,9 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     // We unroll over both the global fetch and the register load pipeline to ensure all shared memory accesses are
     // static. Note that both pipelines have even length meaning that the next iteration will always start at index 0.
     #pragma unroll
-    for (int pipe = 0; pipe < stages;) {
+    for (int pipe = 0; pipe < stages/*4*/;) {
       #pragma unroll
-      for (int k = 0; k < b_sh_wr_iters; k++) {
+      for (int k = 0; k < b_sh_wr_iters/*2*/; k++) {
         fetch_to_registers(k + 1, pipe % stages);
         if (k == b_sh_wr_iters - 2) {
           fetch_to_shared((pipe + stages - 1) % stages, pipe, slice_iters >= stages);
@@ -737,6 +751,10 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       }
     }
   }
+  //if (1 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 ) {
+  //  printf("\r>slice_row=%d slice_col=%d slice_iters=%d slice_count=%d b_sh_wr_iters=%d",
+  //  slice_row, slice_col, slice_iters, slice_count, b_sh_wr_iters);
+  //}
 }
 
 
