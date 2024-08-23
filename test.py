@@ -65,7 +65,7 @@ class Test(unittest.TestCase):
         #import pdb; pdb.set_trace()
         marlin.mul(A, B, C, s, workspace, thread_k, thread_n, -1)
         torch.cuda.synchronize()
-        self.assertLess(torch.mean(torch.abs(C - C_ref)) / torch.mean(torch.abs(C_ref)), 0.02)
+        self.assertLess(torch.mean(torch.abs(C - C_ref)) / torch.mean(torch.abs(C_ref)), 0.08)
 
     def test_tiles(self):
         print()

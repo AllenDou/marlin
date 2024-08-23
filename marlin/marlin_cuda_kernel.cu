@@ -220,8 +220,8 @@ __global__ void Marlin(
     prob_m = 16 * thread_m_blocks; // 16*4 = 64
   }
 
-  int k_tiles = prob_k / 16 / thread_k_blocks/*4*/; // 4096/16/4   = 64   16个数一个单位
-  int n_tiles = prob_n / 16 / thread_n_blocks/*16*/; // 4096/16/16 = 16   16个数一个单位
+  int k_tiles/*64*/ = prob_k / 16 / thread_k_blocks/*4*/;  // 4096/16/4  = 64   16个数一个单位
+  int n_tiles/*16*/ = prob_n / 16 / thread_n_blocks/*16*/; // 4096/16/16 = 16   16个数一个单位
   if (0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && \
   threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
     printf("\r>gridDim:x=%d gridDim.y=%d gridDim.z=%d \
@@ -244,12 +244,12 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   // Ensure that the number of tiles in each stripe is a multiple of the groupsize; this avoids an annoying special case
   // where a stripe starts in the middle of group.
   if (group_blocks /*8*/ != -1)
-    iters = (group_blocks /*8*/ / thread_k_blocks/*4*/) * ceildiv(iters/*179*/, (group_blocks / thread_k_blocks));
+    iters = (group_blocks /*8*/ / thread_k_blocks/*4*/) * ceildiv(iters/*179*/, (group_blocks/*8*/ / thread_k_blocks));
     // iters = 180
   
   // by zixiao, assume blockIdx.x == 1
-  int slice_row /*52*/ = (iters * blockIdx.x /* 0-91 */) % k_tiles/*64*/;
-  int slice_col_par /*2*/ = (iters * blockIdx.x /* 0-91 */) / k_tiles/*64*/;
+  int slice_row /*52*/ = (iters/*180*/ * blockIdx.x /* [0-91] */) % k_tiles/*64*/;
+  int slice_col_par /*2*/ = (iters/*180*/ * blockIdx.x /* [0-91] */) / k_tiles/*64*/;
   int slice_col /*2*/ = slice_col_par;
   int slice_iters; // number of threadblock tiles in the current slice
   int slice_count = 0; // total number of active threadblocks in the current slice
@@ -298,10 +298,10 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   };
   init_slice();
 
-  if (1 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && \
-  threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
-    printf("\r>slice_row=%d slice_col=%d slice_iters=%d slice_count=%d slice_idx=%d",
-    slice_row, slice_col, slice_iters, slice_count, slice_idx);
+  if (1 && blockIdx.x == 3 && blockIdx.y == 0 && blockIdx.z == 0 ) {
+    // don't print threadIdx, because code above don't use threadIdx
+    printf("\r>slice_row=%d slice_col=%d slice_col_par=%d slice_iters=%d slice_count=%d slice_idx=%d",
+    slice_row, slice_col, slice_col_par, slice_iters, slice_count, slice_idx);
   }
 
 
@@ -335,7 +335,7 @@ k_tiles=%d n_tiles=%d parallel=%d", \
 
   if (0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && \
   threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
-    printf("a_sh_stride=%d a_gl_rd_delta_o=%d a_gl_rd_delta_i=%d a_sh_wr_delta=%d a_sh_rd_delta_o=%d a_sh_rd_delta_i=%d, \n\
+    printf("\r>a_sh_stride=%d a_gl_rd_delta_o=%d a_gl_rd_delta_i=%d a_sh_wr_delta=%d a_sh_rd_delta_o=%d a_sh_rd_delta_i=%d, \n\
 a_sh_stage=%d a_sh_wr_iters=%d b_gl_stride=%d b_sh_stride=%d b_gl_rd_delta_o=%d b_gl_rd_delta_i=%d b_sh_wr_delta=%d, \n\
 b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_sh_stage=%d s_gl_rd_delta=%d \n",
   a_sh_stride, a_gl_rd_delta_o, a_gl_rd_delta_i, a_sh_wr_delta, a_sh_rd_delta_o, a_sh_rd_delta_i, \
@@ -792,27 +792,27 @@ int marlin_cuda(
 
   if (sms == -1)
     cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, dev); // L20: sms = 92
-  if (thread_k == -1 || thread_n == -1) {
-    if (prob_m <= 16) {
-      // For small batchizes, better partioning is slightly more important than better compute utilization
-      thread_k = 128;
-      thread_n = 128;
-    } else {
-      thread_k = 64;
-      thread_n = 256;
-    }
-  }
+  //if (thread_k == -1 || thread_n == -1) {
+  //  if (prob_m <= 16) {
+  //    // For small batchizes, better partioning is slightly more important than better compute utilization
+  //    thread_k = 128;
+  //    thread_n = 128;
+  //  } else {
+  //    thread_k = 64;
+  //    thread_n = 256;
+  //  }
+  //}
 
-  thread_k = 64;
-  thread_n = 256;
+  //thread_k = 64;
+  //thread_n = 256;
 
-  int thread_k_blocks = thread_k / 16; // 64/16 = 4      THREADS=256=16x16, 相当于k n维度各16个线程
-  int thread_n_blocks = thread_n / 16; // 256/16 = 16
+  int thread_k_blocks = 4;  //thread_k / 16; // 64/16 = 4      THREADS=256=16x16, 相当于k n维度各16个线程
+  int thread_n_blocks = 16; //thread_n / 16; // 256/16 = 16
   int group_blocks = (groupsize == -1) ? -1 : groupsize / 16; // 128/16 = 8
   int blocks = sms; // = 92
 
 
-  if (prob_n % thread_n != 0 || prob_k % thread_k != 0 || (group_blocks != -1 && prob_k % group_blocks != 0))
+  if (/*prob_n % thread_n != 0 || prob_k % thread_k != 0 ||*/ (group_blocks != -1 && prob_k % group_blocks != 0))
     return ERR_PROB_SHAPE;
   if (prob_m == 0 || prob_n == 0 || prob_k == 0)
     return 0;
@@ -822,20 +822,20 @@ int marlin_cuda(
   int4* C_ptr = (int4*) C;
   const int4* s_ptr = (const int4*) s;
 
-  int cols = prob_n / thread_n; // 4096/256 = 16
+  //int cols = prob_n / thread_n; // 4096/256 = 16
   int* locks = (int*) workspace; // see workspace = torch.zeros(n // 128 * 16, device=DEV)
                                  // 512 个 0
 
   int ret = 0;
   for (int i = 0; i < tot_m_blocks/*1600*/; i += 4) {
-    int thread_m_blocks = tot_m_blocks - i;
+    int thread_m_blocks = tot_m_blocks/*1600*/ - i;
     prob_m = tot_m/*25600*/ - 16 * i;
     int par = 1;
     if (thread_m_blocks > 4) {
       // Note that parallel > 1 currently only works for inputs without any padding
       par = (16 * thread_m_blocks - pad) / 64;
-      if (par > max_par)
-        par = max_par;
+      if (par > max_par/*16*/)
+        par = max_par/*16*/;
       prob_m = 64 * par;
       i += 4 * (par - 1);
       thread_m_blocks = 4;
@@ -857,8 +857,8 @@ int marlin_cuda(
     //CALL_IF(4, 16,  4, -1)
     CALL_IF(4, 16,  4,  8)
 
-    A_ptr += 16 * thread_m_blocks * (prob_k / 8) * par;
-    C_ptr += 16 * thread_m_blocks * (prob_n / 8) * par;
+    A_ptr += 16 * thread_m_blocks * (prob_k / 8) * par/*16*/;
+    C_ptr += 16 * thread_m_blocks * (prob_n / 8) * par/*16*/;
   }
 
   return ret;
