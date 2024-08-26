@@ -216,12 +216,15 @@ __global__ void Marlin(
   // For larger GEMMs we run multiple batchsize 64 versions in parallel for a better partitioning with less reductions
   int parallel = 1;
   if (prob_m /*1024*/ > 16 * thread_m_blocks) {
-    parallel = prob_m / (16 * thread_m_blocks); // 1024/(16*4) = 16
+    parallel = prob_m / (16 * thread_m_blocks/*4*/); // 1024/(16*4) = 16
     prob_m = 16 * thread_m_blocks; // 16*4 = 64
   }
 
   int k_tiles/*64*/ = prob_k / 16 / thread_k_blocks/*4*/;  // 4096/16/4  = 64   16个数一个单位
   int n_tiles/*16*/ = prob_n / 16 / thread_n_blocks/*16*/; // 4096/16/16 = 16   16个数一个单位
+  // a weight tile size is 64*256
+  // a input tile size is 64*64
+  // no matter input or weight, m k n dimension are all divide by 16, to match gpu instrction mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32
   if (0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && \
   threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
     printf("\r>gridDim:x=%d gridDim.y=%d gridDim.z=%d \
@@ -321,7 +324,7 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   int b_gl_stride /*2048*/ = 16 * prob_n/*4096*/ / 32;
   constexpr int b_sh_stride /*128*/ = 32 * thread_n_blocks/*16*/ / 4;
   int b_gl_rd_delta_o /*8196*/ = b_gl_stride /*2048*/ * thread_k_blocks /*4*/;
-  int b_gl_rd_delta_i /*4096*/ = b_gl_stride * (threads / b_sh_stride);
+  int b_gl_rd_delta_i /*4096*/ = b_gl_stride * (threads/*256*/ / b_sh_stride);
   constexpr int b_sh_wr_delta /*256*/ = threads;
   constexpr int b_sh_rd_delta /*256*/ = threads;
   constexpr int b_sh_stage /*512*/ = b_sh_stride * thread_k_blocks;
@@ -343,21 +346,24 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   b_sh_rd_delta, b_sh_stage, b_sh_wr_iters, s_gl_stride, s_sh_stride, s_sh_stage, s_gl_rd_delta);
   }
 
+  // A related.
   // Global A read index of current thread.
-  int a_gl_rd = a_gl_stride * (threadIdx.x / a_gl_rd_delta_o) + (threadIdx.x % a_gl_rd_delta_o);
-  a_gl_rd += a_gl_rd_delta_o * slice_row;
+  int a_gl_rd = a_gl_stride/*512*/ * (threadIdx.x / a_gl_rd_delta_o/*8*/) + (threadIdx.x % a_gl_rd_delta_o/*8*/);
+  a_gl_rd += a_gl_rd_delta_o/*8*/ * slice_row;
   // Shared write index of current thread.
-  int a_sh_wr = a_sh_stride/*8*/ * (threadIdx.x / a_gl_rd_delta_o) + (threadIdx.x % a_gl_rd_delta_o);
+  int a_sh_wr = a_sh_stride/*8*/ * (threadIdx.x / a_gl_rd_delta_o/*8*/) + (threadIdx.x % a_gl_rd_delta_o/*8*/);
   // Shared read index.
   int a_sh_rd = a_sh_stride/*8*/ * ((threadIdx.x % 32) % 16) + (threadIdx.x % 32) / 16;
   a_sh_rd += 2 * ((threadIdx.x / 32) / (thread_n_blocks / 4));
 
-  int b_gl_rd = b_gl_stride * (threadIdx.x / b_sh_stride) + (threadIdx.x % b_sh_stride);
+  // B related.
+  int b_gl_rd = b_gl_stride/*2048*/ * (threadIdx.x / b_sh_stride/*128*/) + (threadIdx.x % b_sh_stride/*128*/);
   b_gl_rd += b_sh_stride * slice_col;
   b_gl_rd += b_gl_rd_delta_o * slice_row;
   int b_sh_wr = threadIdx.x;
   int b_sh_rd = threadIdx.x;
 
+  // scale related
   int s_gl_rd = s_gl_stride * ((thread_k_blocks * slice_row) / group_blocks) + s_sh_stride * slice_col + threadIdx.x;
   int s_sh_wr = threadIdx.x;
   int s_sh_rd;
@@ -370,7 +376,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   
   // Precompute which thread should not read memory in which iterations; this is needed if there are more threads than
   // required for a certain tilesize or when the batchsize is not a multiple of 16.
-  bool a_sh_wr_pred[a_sh_wr_iters];
+  bool a_sh_wr_pred[a_sh_wr_iters/*2*/];
   #pragma unroll
   for (int i = 0; i < a_sh_wr_iters; i++)
     a_sh_wr_pred[i] = a_sh_wr_delta/*256*/ * i + a_sh_wr < a_sh_stride/*8*/ * prob_m/*64*/;
@@ -408,12 +414,12 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   extern __shared__ int4 sh[];
   // Shared memory storage for global fetch pipelines. 
   int4* sh_a = sh;
-  int4* sh_b = sh_a + (stages * a_sh_stage);
-  int4* sh_s = sh_b + (stages * b_sh_stage);
+  int4* sh_b = sh_a + (stages/*4*/ * a_sh_stage/*512*/);
+  int4* sh_s = sh_b + (stages/*4*/ * b_sh_stage/*512*/);
   // Register storage for double buffer of shared memory reads. 
-  FragA frag_a[2][thread_m_blocks];
+  FragA frag_a[2][thread_m_blocks/*4*/];
   I4 frag_b_quant[2];
-  FragC frag_c[thread_m_blocks][4][2];
+  FragC frag_c[thread_m_blocks/*4*/][4][2];
   FragS frag_s[2][4];
 
   // Zero accumulators.
@@ -424,14 +430,15 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   };
 
   // Asynchronously fetch the next A, B and s tile from global to the next shared memory pipeline location.
+  // by threadIdx, by zixiao annotation
   auto fetch_to_shared = [&] (int pipe, int a_off, bool pred = true) {
     if (pred) {
-      int4* sh_a_stage = sh_a + a_sh_stage * pipe;
+      int4* sh_a_stage = sh_a + a_sh_stage/*512*/ * pipe;
       #pragma unroll
-      for (int i = 0; i < a_sh_wr_iters; i++) {
+      for (int i = 0; i < a_sh_wr_iters/*2*/; i++) {
         cp_async4_pred(
           &sh_a_stage[a_sh_wr_trans[i]],
-          &A[a_gl_rd_delta_i * i + a_gl_rd + a_gl_rd_delta_o * a_off],
+          &A[a_gl_rd_delta_i/*16384*/ * i + a_gl_rd + a_gl_rd_delta_o/*8*/ * a_off],
           a_sh_wr_pred[i]
         );
       }
@@ -462,11 +469,12 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   };
 
   // Load the next sub-tile from the current location in the shared memory pipe into the current register buffer.
+  // by threadIdx, by zixiao annotation
   auto fetch_to_registers = [&] (int k, int pipe) {
     // It may seem inefficient that we reload the groups for every sub-tile; however, this does not seem to be a
     // significant bottleneck, while some theoretically better attempts have lead to bad instruction ordering by the
     // compiler and correspondingly a noticable drop in performance.
-    if (group_blocks != -1) {
+    if (group_blocks/*8*/ != -1) {
       int4* sh_s_stage = sh_s + s_sh_stage * ((group_blocks / thread_k_blocks) * (pipe / (group_blocks / thread_k_blocks)));
       reinterpret_cast<int4*>(&frag_s[k % 2])[0] = sh_s_stage[s_sh_rd];
     }
@@ -483,17 +491,18 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     // We have the m dimension as the inner loop in order to encourage overlapping dequantization and matmul operations.
     #pragma unroll
     for (int j = 0; j < 4; j++) {
+      // I4 frag_b_quant[2]; annotate by zixiao.
       int b_quant = frag_b_quant[k % 2][j];
       int b_quant_shift = b_quant >> 8;
       FragB frag_b0 = dequant(b_quant);
       // If there are no groups, we can just scale the final output once and can avoid doing so for each weight.
-      if (group_blocks != -1)
+      if (group_blocks/*8*/ != -1)
         scale(frag_b0, frag_s[k % 2][j], 0);
       FragB frag_b1 = dequant(b_quant_shift);
-      if (group_blocks != -1)
+      if (group_blocks/*8*/ != -1)
         scale(frag_b1, frag_s[k % 2][j], 1);
       #pragma unroll
-      for (int i = 0; i < thread_m_blocks; i++) {
+      for (int i = 0; i < thread_m_blocks/*4*/; i++) {
         mma(frag_a[k % 2][i], frag_b0, frag_c[i][j][0]);
         mma(frag_a[k % 2][i], frag_b1, frag_c[i][j][1]);
       }
@@ -660,7 +669,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   // Start global fetch and register load pipelines. 
   auto start_pipes = [&] () {
     #pragma unroll
-    for (int i = 0; i < stages - 1; i++)
+    for (int i = 0; i < stages/*4*/ - 1; i++)
       fetch_to_shared(i, i, i < slice_iters);
     zero_accums();
     wait_for_stage();
@@ -679,7 +688,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       for (int k = 0; k < b_sh_wr_iters/*2*/; k++) {
         fetch_to_registers(k + 1, pipe % stages);
         if (k == b_sh_wr_iters - 2) {
-          fetch_to_shared((pipe + stages - 1) % stages, pipe, slice_iters >= stages);
+          fetch_to_shared((pipe + stages - 1) % stages, pipe, slice_iters >= stages/*4*/);
           pipe++;
           wait_for_stage();
         }
@@ -727,7 +736,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
         slice_row, slice_col, slice_iters, slice_count);
       }
       if (slice_iters) {
-        a_gl_rd = a_gl_stride * (threadIdx.x / a_gl_rd_delta_o) + (threadIdx.x % a_gl_rd_delta_o);
+        a_gl_rd = a_gl_stride/*512*/ * (threadIdx.x / a_gl_rd_delta_o) + (threadIdx.x % a_gl_rd_delta_o);
         #pragma unroll
         for (int i = 0; i < b_sh_wr_iters; i++)
           B_ptr[i] += b_sh_stride - b_gl_rd_delta_o * k_tiles;
@@ -781,7 +790,7 @@ int marlin_cuda(
   int prob_m,
   int prob_n,
   int prob_k,
-  void* workspace,
+  void* workspace, //@workspace: `torch.int` tensor with at least `n / 128 * max_par` entries that are all zero
   int groupsize = -1, /*128*/
   int dev = 0,
   cudaStream_t stream = 0,
