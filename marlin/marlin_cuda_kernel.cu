@@ -255,11 +255,6 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   int slice_count = 0; // total number of active threadblocks in the current slice
   int slice_idx; // index of threadblock in current slice; numbered bottom to top
 
-  int tmp_col_first = -99;
-  int tmp_col_off = -99;
-  int tmp_delta_first = -99;
-  int tmp_slice_count = -99;
-  int tmp_slice_idx = -99;
   // We can easily implement parallel problem execution by just remapping indices and advancing global pointers
   if (slice_col_par >= n_tiles/*16*/) {
     A += (slice_col_par / n_tiles) * 16 * thread_m_blocks * prob_k / 8;
@@ -293,15 +288,6 @@ k_tiles=%d n_tiles=%d parallel=%d", \
         if (col_off > 0)
           slice_idx--;
       }
-      tmp_col_first = col_first;
-      tmp_col_off = col_off;
-      tmp_delta_first = delta_first;
-      tmp_slice_count = slice_count;
-      tmp_slice_idx = slice_idx;
-    }
-    if (0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 ) {
-      printf("\r>col_first=%d col_off=%d delta_first=%d slice_count=%d slice_idx=%d",
-      tmp_col_first, tmp_col_off, tmp_delta_first, tmp_slice_count, tmp_slice_idx);
     }
     if (slice_col == n_tiles) {
       A += 16 * thread_m_blocks /*4*/ * prob_k / 8;
@@ -312,11 +298,11 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   };
   init_slice();
 
-  //if (1 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 ) {
-  //  // don't print threadIdx, because code above don't use threadIdx
-  //  printf("\r>slice_row=%d slice_col=%d slice_col_par=%d slice_iters=%d slice_count=%d slice_idx=%d tmp_col_first=%d tmp_col_off=%d tmp_delta_first=%d",
-  //  slice_row, slice_col, slice_col_par, slice_iters, tmp_slice_count, tmp_slice_idx, tmp_col_first, tmp_col_off, tmp_delta_first);
-  //}
+  if (1 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 ) {
+    // don't print threadIdx, because code above don't use threadIdx
+    printf("\r>slice_row=%d slice_col=%d slice_col_par=%d slice_iters=%d threadIdx.x=%d threadIdx.y=%d threadIdx.z=%d",
+    slice_row, slice_col, slice_col_par, slice_iters, threadIdx.x, threadIdx.y, threadIdx.z);
+  }
 
 
   /* A related. */
@@ -736,6 +722,10 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       slice_col_par++;
       slice_col++;
       init_slice();
+      if (0 && slice_col==2 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 ) {
+        printf("\r>slice_row=%d slice_col=%d slice_iters=%d slice_count=%d",
+        slice_row, slice_col, slice_iters, slice_count);
+      }
       if (slice_iters) {
         a_gl_rd = a_gl_stride * (threadIdx.x / a_gl_rd_delta_o) + (threadIdx.x % a_gl_rd_delta_o);
         #pragma unroll
@@ -751,10 +741,6 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       }
     }
   }
-  //if (1 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 ) {
-  //  printf("\r>slice_row=%d slice_col=%d slice_iters=%d slice_count=%d b_sh_wr_iters=%d",
-  //  slice_row, slice_col, slice_iters, slice_count, b_sh_wr_iters);
-  //}
 }
 
 
