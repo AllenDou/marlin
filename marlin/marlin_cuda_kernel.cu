@@ -198,14 +198,14 @@ __global__ void Marlin(
   const int4* __restrict__ A, // fp16 input matrix of shape mxk 
   const int4* __restrict__ B, // 4bit quantized weight matrix of shape kxn 
         int4* __restrict__ C, // fp16 output buffer of shape mxn
-  const int4* __restrict__ s, // fp16 quantization scales of shape (k/groupsize)xn 
+  const int4* __restrict__ s, // fp16 quantization scales of shape (k/groupsize)xn 32*4096 
   int  prob_m /*1024*/, // batch dimension m
   int  prob_n /*4096*/, // output dimension n
   int  prob_k /*4096*/, // reduction dimension k
   int* locks /* 0 * 512*/// extra global storage for barrier synchronization 
 ) {
   // Each threadblock processes one "stripe" of the B matrix with (roughly) the same size, which might involve multiple 
-  // column "slices" (of width 16 * `thread_n_blocks`). Stripes are defined as shown in the 3x3 matrix 5 SM example: 
+  // column "slices" (of width 16 * `thread_n_blocks(16)`). Stripes are defined as shown in the 3x3 matrix 5 SM example: 
   //   0 1 3 
   //   0 2 3
   //   1 2 4
@@ -220,8 +220,10 @@ __global__ void Marlin(
     prob_m = 16 * thread_m_blocks; // 16*4 = 64
   }
 
-  int k_tiles/*64 fp16 per thread*/ = prob_k / 16 / thread_k_blocks/*4*/;  // 4096/16/4  = 64   16个数一个单位
-  int n_tiles/*16 fp16 per thread*/ = prob_n / 16 / thread_n_blocks/*16*/; // 4096/16/16 = 16   16个数一个单位
+  // 16 mean sub-tile's m k n is all equal 16(this is for tensor core compute.)
+  int k_tiles/*64 tile in K dimension*/ = prob_k / 16 / thread_k_blocks/*4*/;  // 4096/16/4  = 64
+  int n_tiles/*16 tile in N dimension*/ = prob_n / 16 / thread_n_blocks/*16*/; // 4096/16/16 = 16
+  // m_tiles = prob_m / 16 / thread_m_blocks/*4*/; // 64/16/4 = 1
   // a weight tile size is 64*256
   // a input tile size is 64*64
   // no matter input or weight, m k n dimension are all divide by 16, to match gpu instrction mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32
@@ -301,7 +303,7 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   };
   init_slice();
 
-  if (1 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 ) {
+  if (0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 ) {
     // don't print threadIdx, because code above don't use threadIdx
     printf("\r>slice_row=%d slice_col=%d slice_col_par=%d slice_iters=%d threadIdx.x=%d threadIdx.y=%d threadIdx.z=%d",
     slice_row, slice_col, slice_col_par, slice_iters, threadIdx.x, threadIdx.y, threadIdx.z);
@@ -378,6 +380,12 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     s_sh_rd = 8 * ((threadIdx.x / 32) % (thread_n_blocks / 4)) + (threadIdx.x % 32) / 4;
   else
     s_sh_rd = 8 * ((threadIdx.x / 32) % (thread_n_blocks / 4)) + (threadIdx.x % 32) % 4;
+  
+  if (1 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && \
+  threadIdx.x == 8 && threadIdx.y == 0 && threadIdx.z == 0) {
+    printf("\r> sm=%d thread=%d a_gl_rd=%d a_sh_wr=%d a_sh_rd=%d    b_gl_rd=%d b_sh_wr=%d b_sh_rd=%d    s_gl_rd=%d s_sh_wr=%d s_sh_rd=%d ",
+  blockIdx.x, threadIdx.x, a_sh_wr, a_sh_rd, b_gl_rd, b_sh_wr, b_sh_rd, s_gl_rd, s_sh_wr, s_sh_rd);
+  }
   
   // Precompute which thread should not read memory in which iterations; this is needed if there are more threads than
   // required for a certain tilesize or when the batchsize is not a multiple of 16.
@@ -824,7 +832,7 @@ int marlin_cuda(
   //thread_k = 64;
   //thread_n = 256;
 
-  int thread_k_blocks = 4;  //thread_k / 16; // 64/16 = 4      THREADS=256=16x16, 相当于k n维度各16个线程
+  int thread_k_blocks = 4;  //thread_k / 16; // 64/16 = 4
   int thread_n_blocks = 16; //thread_n / 16; // 256/16 = 16
   int group_blocks = (groupsize == -1) ? -1 : groupsize / 16; // 128/16 = 8
   int blocks = sms; // = 92
