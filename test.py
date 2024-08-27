@@ -150,6 +150,7 @@ class Test(unittest.TestCase):
 
     def test_groups(self):
 
+        print()
         print_enable = False
         user_specified_blockidx = 1
         user_specified_threadidx = 1
