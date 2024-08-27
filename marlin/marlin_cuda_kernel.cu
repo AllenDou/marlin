@@ -329,7 +329,7 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   constexpr int a_sh_stage /*512 int4*/= a_sh_stride * (16 * thread_m_blocks/*4*/); // overall size of a tile
   // so, a A's tile is 64*8(int4) = 64*8*8fp16=4096fp16
   // A's size is 64*4096(fp16) = 32768(int4) = 2*16384(int4) 
-  constexpr int a_sh_wr_iters /*2 int4 per a thread*/ = ceildiv(a_sh_stage, a_sh_wr_delta); // number of shared write iterations for a tile
+  constexpr int a_sh_wr_iters /*2 iter*/ = ceildiv(a_sh_stage, a_sh_wr_delta); // number of shared write iterations for a tile
 
   /* B related. */
   // 1int4 = 8fp16, 1*fp16 == 4*4 int(4bit), so 1int4 = 32int(4bit)
@@ -337,10 +337,10 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   constexpr int b_sh_stride /*128 thread for one row of B*/ = 32 * thread_n_blocks/*16*/ / 4;
   /*******/ int b_gl_rd_delta_o /*8196 int4*/ = b_gl_stride /*2048*/ * thread_k_blocks /*4*/;
   /*******/ int b_gl_rd_delta_i /*4096 int4*/ = b_gl_stride /*2048*/ * (threads/*256*/ / b_sh_stride/*128*/);
-  constexpr int b_sh_wr_delta /*256*/ = threads;
-  constexpr int b_sh_rd_delta /*256*/ = threads;
-  constexpr int b_sh_stage /*512*/ = b_sh_stride/*128*/ * thread_k_blocks/*4*/;
-  constexpr int b_sh_wr_iters /*2*/ = b_sh_stage/*512*/ / b_sh_wr_delta/*256*/;
+  constexpr int b_sh_wr_delta /*256 thread*/ = threads;
+  constexpr int b_sh_rd_delta /*256 thread*/ = threads;
+  constexpr int b_sh_stage /*512 int4 in this '状态'*/ = b_sh_stride/*128*/ * thread_k_blocks/*4*/;
+  constexpr int b_sh_wr_iters /*2 iter, 256个线程要iter 2次才能写完*/ = b_sh_stage/*512*/ / b_sh_wr_delta/*256*/;
 
   /* scale related. */
   // 1 int4 = 8fp16 
@@ -453,6 +453,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   // by threadIdx, by zixiao annotation
   auto fetch_to_shared = [&] (int pipe, int a_off, bool pred = true) {
     if (pred) {
+      // fetch a
       int4* sh_a_stage = sh_a + a_sh_stage/*512*/ * pipe;
       #pragma unroll
       for (int i = 0; i < a_sh_wr_iters/*2*/; i++) {
@@ -462,13 +463,14 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
           a_sh_wr_pred[i]
         );
       }
+      // fetch b
       int4* sh_b_stage = sh_b + b_sh_stage * pipe;
       #pragma unroll
       for (int i = 0; i < b_sh_wr_iters; i++) {
         cp_async4_stream(&sh_b_stage[b_sh_wr_delta * i + b_sh_wr], B_ptr[i]);
         B_ptr[i] += b_gl_rd_delta_o;
       }
-      // Only fetch scales if this tile starts a new group
+      // fetch s, Only fetch scales if this tile starts a new group
       if (group_blocks != -1 && pipe % (group_blocks / thread_k_blocks) == 0) {
         int4* sh_s_stage = sh_s + s_sh_stage * pipe;
         if (s_sh_wr_pred)
@@ -494,10 +496,14 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     // It may seem inefficient that we reload the groups for every sub-tile; however, this does not seem to be a
     // significant bottleneck, while some theoretically better attempts have lead to bad instruction ordering by the
     // compiler and correspondingly a noticable drop in performance.
+
+    // fetch s
     if (group_blocks/*8*/ != -1) {
       int4* sh_s_stage = sh_s + s_sh_stage * ((group_blocks / thread_k_blocks) * (pipe / (group_blocks / thread_k_blocks)));
       reinterpret_cast<int4*>(&frag_s[k % 2])[0] = sh_s_stage[s_sh_rd];
     }
+
+    // fetch a
     int4* sh_a_stage = sh_a + a_sh_stage * pipe;
     #pragma unroll
     for (int i = 0; i < thread_m_blocks; i++)
@@ -533,12 +539,12 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   // dimension of a tile reasonable, we have multiple warps that accumulate their partial sums of the same output
   // location; which we have to reduce over in the end. We do in shared memory.
   auto thread_block_reduce = [&] () {
-    constexpr int red_off = threads / b_sh_stride / 2;
+    constexpr int red_off/*1*/ = threads/*256*/ / b_sh_stride/*128*/ / 2;
     if (red_off >= 1) {
-      int red_idx = threadIdx.x / b_sh_stride;
-      constexpr int red_sh_stride = b_sh_stride * 4 * 2;
-      constexpr int red_sh_delta = b_sh_stride; 
-      int red_sh_rd = red_sh_stride * (threadIdx.x / b_sh_stride) + (threadIdx.x % b_sh_stride);
+      int red_idx = threadIdx.x / b_sh_stride/*128*/;
+      constexpr int red_sh_stride/*1024*/ = b_sh_stride/*128*/ * 4 * 2;
+      constexpr int red_sh_delta/*128*/ = b_sh_stride/*128*/; 
+      int red_sh_rd = red_sh_stride/*1024*/ * (threadIdx.x / b_sh_stride/*128*/) + (threadIdx.x % b_sh_stride/*128*/);
 
       // Parallel logarithmic shared memory reduction. We make sure to avoid any unnecessary read or write iterations,
       // e.g., for two warps we write only once by warp 1 and read only once by warp 0. 
@@ -584,13 +590,13 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     // We are very careful here to reduce directly in the output buffer to maximize L2 cache utilization in this step. 
     // To do this, we write out results in FP16 (but still reduce with FP32 compute).
     constexpr int active_threads /*128*/ = 32 * thread_n_blocks/*16*/ / 4;
-    if (threadIdx.x < active_threads) {
-      int c_gl_stride = prob_n / 8;
-      int c_gl_wr_delta_o = 8 * c_gl_stride;
-      int c_gl_wr_delta_i = 4 * (active_threads / 32);
-      int c_gl_wr = c_gl_stride * ((threadIdx.x % 32) / 4) + 4 * (threadIdx.x / 32) + threadIdx.x % 4;
-      c_gl_wr += (2 * thread_n_blocks) * slice_col;
-      constexpr int c_sh_wr_delta = active_threads;
+    if (threadIdx.x < active_threads/*128*/) {
+      int c_gl_stride/*512*/ = prob_n/*4096*/ / 8;
+      int c_gl_wr_delta_o/*4096*/ = 8 * c_gl_stride;
+      int c_gl_wr_delta_i/*16*/ = 4 * (active_threads/*128*/ / 32);
+      int c_gl_wr = c_gl_stride/*512*/ * ((threadIdx.x % 32) / 4) + 4 * (threadIdx.x / 32) + threadIdx.x % 4;
+      c_gl_wr += (2 * thread_n_blocks/*16*/) * slice_col;
+      constexpr int c_sh_wr_delta = active_threads/*128*/;
       int c_sh_wr = threadIdx.x;
 
       int row = (threadIdx.x % 32) / 4;
@@ -603,7 +609,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
           cp_async4_pred(
             &sh[c_sh_wr + c_sh_wr_delta * i],
             &C[c_gl_wr + c_gl_wr_delta_o * (i / 2) + c_gl_wr_delta_i * (i % 2)],
-            i < (thread_m_blocks - 1) * 4 || 8 * (i / 2) + row < prob_m
+            i < (thread_m_blocks/*4*/ - 1) * 4 || 8 * (i / 2) + row < prob_m/*64*/
           );
         }
         cp_async_fence();
@@ -640,18 +646,18 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   // Write out the reduce final result in the correct layout. We only actually reshuffle matrix fragments in this step,
   // the reduction above is performed in fragment layout. 
   auto write_result = [&] () {
-    int c_gl_stride = prob_n / 8;
-    constexpr int c_sh_stride = 2 * thread_n_blocks + 1;
-    int c_gl_wr_delta = c_gl_stride * (threads / (2 * thread_n_blocks));
-    constexpr int c_sh_rd_delta = c_sh_stride * (threads / (2 * thread_n_blocks));
+    int c_gl_stride/*512*/ = prob_n/*4096*/ / 8;
+    constexpr int c_sh_stride/*33*/ = 2 * thread_n_blocks/*16*/ + 1;
+    int c_gl_wr_delta/*4096*/ = c_gl_stride * (threads/*256*/ / (2 * thread_n_blocks/*16*/));
+    constexpr int c_sh_rd_delta/*264*/ = c_sh_stride/*33*/ * (threads / (2 * thread_n_blocks));
 
-    int c_gl_wr = c_gl_stride * (threadIdx.x / (2 * thread_n_blocks)) + (threadIdx.x % (2 * thread_n_blocks));
-    c_gl_wr += (2 * thread_n_blocks) * slice_col;
+    int c_gl_wr = c_gl_stride/*512*/ * (threadIdx.x / (2 * thread_n_blocks/*16*/)) + (threadIdx.x % (2 * thread_n_blocks/*16*/));
+    c_gl_wr += (2 * thread_n_blocks/*16*/) * slice_col/*2 when blockIdx.x == 1*/;
     int c_sh_wr = (4 * c_sh_stride) * ((threadIdx.x % 32) / 4) + (threadIdx.x % 32) % 4;
     c_sh_wr += 32 * (threadIdx.x / 32);
     int c_sh_rd = c_sh_stride * (threadIdx.x / (2 * thread_n_blocks)) + (threadIdx.x % (2 * thread_n_blocks));
 
-    int c_gl_wr_end = c_gl_stride * prob_m;
+    int c_gl_wr_end/*32768*/ = c_gl_stride/*512*/ * prob_m/*64*/;
 
     // We first reorder in shared memory to guarantee the most efficient final global write patterns
     auto write = [&] (int idx, float c0, float c1, FragS& s) {
@@ -660,9 +666,9 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
         res = __hmul2(res, s[0]);
       ((half2*) sh)[idx] = res;
     };
-    if (threadIdx.x / 32 < thread_n_blocks / 4) {
+    if (threadIdx.x / 32 < thread_n_blocks/*16*/ / 4) {
       #pragma unroll
-      for (int i = 0; i < thread_m_blocks; i++) {
+      for (int i = 0; i < thread_m_blocks/*4*/; i++) {
         #pragma unroll
         for (int j = 0; j < 4; j++) {
           int wr = c_sh_wr + 8 * j;
@@ -677,8 +683,8 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     __syncthreads();
 
     #pragma unroll
-    for (int i = 0; i < ceildiv(16 * thread_m_blocks, threads / (2 * thread_n_blocks)); i++) {
-      if (c_gl_wr < c_gl_wr_end) {
+    for (int i = 0; i < ceildiv(16 * thread_m_blocks/*4*/, threads/*256*/ / (2 * thread_n_blocks/*16*/)); i++) {
+      if (c_gl_wr < c_gl_wr_end/*32768*/) {
         C[c_gl_wr] = sh[c_sh_rd];
         c_gl_wr += c_gl_wr_delta;
         c_sh_rd += c_sh_rd_delta;
@@ -890,7 +896,9 @@ int marlin_cuda(
     //CALL_IF(3, 16,  4, -1)
     //CALL_IF(3, 16,  4,  8)
     //CALL_IF(4, 16,  4, -1)
+
     CALL_IF(4, 16,  4,  8)
+    //CALL_IF(2, 16,  4,  8)
 
     A_ptr += 16 * thread_m_blocks * (prob_k / 8) * par/*16*/;
     C_ptr += 16 * thread_m_blocks * (prob_n / 8) * par/*16*/;
