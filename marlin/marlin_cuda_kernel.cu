@@ -875,7 +875,6 @@ int marlin_cuda(
     prob_m = tot_m/*25600*/ - 16 * i;
     int par = 1;
     if (thread_m_blocks > 2) {
-      printf("---\n");
       // Note that parallel > 1 currently only works for inputs without any padding
       par = (16 * thread_m_blocks - pad) / 32;
       if (par > max_par/*16*/)
