@@ -152,7 +152,7 @@ class Test(unittest.TestCase):
 
         print_enable = False
         user_specified_blockidx = 1
-        user_specified_threadidx = 256
+        user_specified_threadidx = 1
         for blockidx in range(user_specified_blockidx-1,user_specified_blockidx):
             for threadidx in range(0,user_specified_threadidx ):
                 #for m in [25600]:
