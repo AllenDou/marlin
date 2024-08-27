@@ -20,7 +20,7 @@ import torch.nn as nn
 
 import marlin_cuda
 
-def mul(A, B, C, s, workspace, thread_k=-1, thread_n=-1, sms=-1, max_par=16, user_specified_blockidx=0, user_specified_threadidx=0):
+def mul(A, B, C, s, workspace, thread_k=-1, thread_n=-1, sms=-1, max_par=16, print_enable=True, user_specified_blockidx=0, user_specified_threadidx=0):
     """Marlin FP16xINT4 multiply; can be used within `torch.compile`.
     @A: `torch.half` input matrix of shape `(m, k)` in standard row-major layout
     @B: `torch.int` weight matrix of original shape `(k, n)` in Marlin format; see `Layer.pack()`
@@ -32,7 +32,7 @@ def mul(A, B, C, s, workspace, thread_k=-1, thread_n=-1, sms=-1, max_par=16, use
     @sms: number of SMs to use for the kernel (can usually be left as auto -1)
     @max_par: maximum number of batch 64 problems to solve in parallel for large input sizes
     """
-    marlin_cuda.mul(A, B, C, s, workspace, thread_k, thread_n, sms, max_par, user_specified_blockidx, user_specified_threadidx)
+    marlin_cuda.mul(A, B, C, s, workspace, thread_k, thread_n, sms, max_par, print_enable, user_specified_blockidx, user_specified_threadidx)
 
 
 # Precompute permutations for Marlin weight and scale shuffling 

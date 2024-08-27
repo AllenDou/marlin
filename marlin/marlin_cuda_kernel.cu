@@ -203,6 +203,7 @@ __global__ void Marlin(
   int  prob_n /*4096*/, // output dimension n
   int  prob_k /*4096*/, // reduction dimension k
   int* locks /* 0 * 512*/ ,// extra global storage for barrier synchronization 
+  bool print_enable,
   int  user_specified_blockidx,
   int  user_specified_threadidx
 ) {
@@ -387,7 +388,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   else
     s_sh_rd = 8 * ((threadIdx.x / 32) % (thread_n_blocks / 4)) + (threadIdx.x % 32) % 4;
   
-  if (1 && blockIdx.x == user_specified_blockidx && blockIdx.y == 0 && blockIdx.z == 0 && \
+  if (print_enable && blockIdx.x == user_specified_blockidx && blockIdx.y == 0 && blockIdx.z == 0 && \
   threadIdx.x == user_specified_threadidx && threadIdx.y == 0 && threadIdx.z == 0) {
     printf("\rsm/th=%d/%d: a_gl_rd=%d a_sh_wr=%d a_sh_rd=%d| b_gl_rd=%d b_sh_wr=%d b_sh_rd=%d| s_gl_rd=%d s_sh_wr=%d s_sh_rd=%d\
 | slice_col/row=%d/%d",
@@ -801,7 +802,7 @@ const int SHARED_MEM = 96 * 1024; // max shared memory on compute capability 8.6
     ><<<blocks/*=92(sm)*/, THREADS, SHARED_MEM, stream/*0*/>>>( \
       A_ptr, B_ptr, C_ptr, s_ptr, \
       prob_m/*1024*/, prob_n/*4096*/, prob_k/*4096*/, \
-      locks, user_specified_blockidx, user_specified_threadidx \
+      locks, print_enable, user_specified_blockidx, user_specified_threadidx \
     ); \
   }
 
@@ -824,6 +825,7 @@ int marlin_cuda(
   int thread_n = -1,
   int sms = -1,
   int max_par = 16, /*16*/
+  bool print_enable = true,
   int user_specified_blockidx = 0,
   int user_specified_threadidx = 0
 ) {

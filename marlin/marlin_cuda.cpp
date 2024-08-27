@@ -36,6 +36,7 @@ int marlin_cuda(
   int thread_n = -1,
   int sms = -1,
   int max_par = 16,
+  bool print_enable = true,
   int user_specified_blockidx = 0,
   int user_specified_threadidx = 0
 );
@@ -53,6 +54,7 @@ void mul(
   int thread_n = -1,
   int sms = -1,
   int max_par = 8,
+  bool print_enable = true,
   int user_specified_blockidx = 0,
   int user_specified_threadidx = 0
 ) {
@@ -79,6 +81,7 @@ void mul(
     thread_n,
     sms,
     max_par,
+    print_enable,
     user_specified_blockidx,
     user_specified_threadidx
   );

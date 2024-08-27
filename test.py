@@ -56,7 +56,7 @@ def gen_quant4(m, n, groupsize=-1):
 
 class Test(unittest.TestCase):
 
-    def run_problem(self, m, n, k, thread_k, thread_n, groupsize=-1, user_specified_blockidx=0, user_specified_threadidx=0):
+    def run_problem(self, m, n, k, thread_k, thread_n, groupsize=-1, print_eable=True, user_specified_blockidx=0, user_specified_threadidx=0):
         #print('% 5d % 6d % 6d % 4d % 4d % 4d' % (m, n, k, thread_k, thread_n, groupsize))
         A = torch.randn((m, k), dtype=torch.half, device=DEV)
         B_ref, B, s = gen_quant4(k, n, groupsize=groupsize)
@@ -64,7 +64,7 @@ class Test(unittest.TestCase):
         C_ref = torch.matmul(A, B_ref)
         workspace = torch.zeros(n // 128 * 16, device=DEV)
         #import pdb; pdb.set_trace()
-        marlin.mul(A, B, C, s, workspace, thread_k, thread_n, -1, 16, user_specified_blockidx, user_specified_threadidx)
+        marlin.mul(A, B, C, s, workspace, thread_k, thread_n, -1, 16, print_eable, user_specified_blockidx, user_specified_threadidx)
         torch.cuda.synchronize()
         self.assertLess(torch.mean(torch.abs(C - C_ref)) / torch.mean(torch.abs(C_ref)), 0.08)
 
@@ -150,17 +150,17 @@ class Test(unittest.TestCase):
 
     def test_groups(self):
 
+        print_enable = False
         user_specified_blockidx = 1
         user_specified_threadidx = 256
         for blockidx in range(user_specified_blockidx-1,user_specified_blockidx):
             for threadidx in range(0,user_specified_threadidx ):
-                print()
                 #for m in [25600]:
                 for m in [1024]:
                     for groupsize in [128]:
                         for n, k in [(4096, 4096)]:
                             for thread_shape in [(64, 256)]:
-                                self.run_problem(m, n, k, *thread_shape, groupsize, blockidx, threadidx)
+                                self.run_problem(m, n, k, *thread_shape, groupsize, print_enable, blockidx, threadidx)
 
 
 if __name__ == '__main__':
