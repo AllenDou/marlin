@@ -362,7 +362,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   // A related.
   // Global A read index of current thread.
   int a_gl_rd = a_gl_stride/*512*/ * (threadIdx.x / a_gl_rd_delta_o/*8 thread for a row*/) + (threadIdx.x % a_gl_rd_delta_o/*8*/);
-  a_gl_rd += a_gl_rd_delta_o/*8*/ * slice_row;
+  a_gl_rd += a_gl_rd_delta_o/*8*/ * slice_row /*52 when blockIdx.x == 1*/;
   // Shared write index of current thread.
   int a_sh_wr = a_sh_stride/*8*/ * (threadIdx.x / a_gl_rd_delta_o/*8*/) + (threadIdx.x % a_gl_rd_delta_o/*8*/);
   // Shared read index.
@@ -377,7 +377,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   int b_sh_rd = threadIdx.x;
 
   // scale related
-  int s_gl_rd = s_gl_stride * ((thread_k_blocks * slice_row) / group_blocks) + s_sh_stride * slice_col + threadIdx.x;
+  int s_gl_rd = s_gl_stride/*512*/ * ((thread_k_blocks/*4*/ * slice_row) / group_blocks/*8*/) + s_sh_stride/*32*/ * slice_col + threadIdx.x;
   int s_sh_wr = threadIdx.x;
   int s_sh_rd;
   // We use a different scale layout for grouped and column-wise quantization as we scale a `half2` tile in column-major
@@ -389,8 +389,9 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   
   if (1 && blockIdx.x == user_specified_blockidx && blockIdx.y == 0 && blockIdx.z == 0 && \
   threadIdx.x == user_specified_threadidx && threadIdx.y == 0 && threadIdx.z == 0) {
-    printf("\r> sm=%d thread=%d a_gl_rd=%d a_sh_wr=%d a_sh_rd=%d    b_gl_rd=%d b_sh_wr=%d b_sh_rd=%d    s_gl_rd=%d s_sh_wr=%d s_sh_rd=%d slice_row=%d slice_col=%d",
-  blockIdx.x, threadIdx.x, a_gl_rd, a_sh_wr, a_sh_rd, b_gl_rd, b_sh_wr, b_sh_rd, s_gl_rd, s_sh_wr, s_sh_rd, slice_row, slice_col);
+    printf("\rsm/th=%d/%d: a_gl_rd=%d a_sh_wr=%d a_sh_rd=%d| b_gl_rd=%d b_sh_wr=%d b_sh_rd=%d| s_gl_rd=%d s_sh_wr=%d s_sh_rd=%d\
+| slice_col/row=%d/%d",
+  blockIdx.x, threadIdx.x, a_gl_rd, a_sh_wr, a_sh_rd, b_gl_rd, b_sh_wr, b_sh_rd, s_gl_rd, s_sh_wr, s_sh_rd, slice_col, slice_row);
   }
   
   // Precompute which thread should not read memory in which iterations; this is needed if there are more threads than
@@ -698,7 +699,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   start_pipes();
 
   // Main loop.
-  while (slice_iters) {
+  while (slice_iters/* one iter for a tile */) {
     // We unroll over both the global fetch and the register load pipeline to ensure all shared memory accesses are
     // static. Note that both pipelines have even length meaning that the next iteration will always start at index 0.
     #pragma unroll

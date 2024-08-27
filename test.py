@@ -57,7 +57,7 @@ def gen_quant4(m, n, groupsize=-1):
 class Test(unittest.TestCase):
 
     def run_problem(self, m, n, k, thread_k, thread_n, groupsize=-1, user_specified_blockidx=0, user_specified_threadidx=0):
-        print('% 5d % 6d % 6d % 4d % 4d % 4d' % (m, n, k, thread_k, thread_n, groupsize))
+        #print('% 5d % 6d % 6d % 4d % 4d % 4d' % (m, n, k, thread_k, thread_n, groupsize))
         A = torch.randn((m, k), dtype=torch.half, device=DEV)
         B_ref, B, s = gen_quant4(k, n, groupsize=groupsize)
         C = torch.zeros((m, n), dtype=torch.half, device=DEV)
@@ -149,14 +149,17 @@ class Test(unittest.TestCase):
         self.assertTrue(err)
 
     def test_groups(self):
-        print()
-        user_specified_blockidx = int(os.getenv('USER_SPECIFIED_BLOCKIDX'))
-        user_specified_threadidx = int(os.getenv('USER_SPECIFIED_THREADIDX'))
-        for m in [25600]:
-            for groupsize in [128]:
-                for n, k in [(4096, 4096)]:
-                    for thread_shape in [(64, 256)]:
-                        self.run_problem(m, n, k, *thread_shape, groupsize, user_specified_blockidx, user_specified_threadidx)
+
+        user_specified_blockidx = 1
+        user_specified_threadidx = 256
+        for blockidx in range(user_specified_blockidx-1,user_specified_blockidx):
+            for threadidx in range(0,user_specified_threadidx ):
+                print()
+                for m in [25600]:
+                    for groupsize in [128]:
+                        for n, k in [(4096, 4096)]:
+                            for thread_shape in [(64, 256)]:
+                                self.run_problem(m, n, k, *thread_shape, groupsize, blockidx, threadidx)
 
 
 if __name__ == '__main__':
