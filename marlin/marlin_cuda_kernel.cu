@@ -884,8 +884,10 @@ int marlin_cuda(
       thread_m_blocks = 4;
     }
 
-    printf("prob_m=%d, prob_n=%d, prob_k=%d thread_m_blocks=%d par=%d\n",
-    prob_m, prob_n, prob_k, thread_m_blocks, par);
+    if (print_enable) {
+      printf("prob_m=%d, prob_n=%d, prob_k=%d thread_m_blocks=%d par=%d\n",
+      prob_m, prob_n, prob_k, thread_m_blocks, par);
+    }
 
     // For compilation speed, we only define the kernel configurations that have seemed useful (in terms of performance)
     // in our testing, however many more are, in principle, possible.
