@@ -35,7 +35,9 @@ int marlin_cuda(
   int thread_k = -1,
   int thread_n = -1,
   int sms = -1,
-  int max_par = 16
+  int max_par = 16,
+  int user_specified_blockidx = 0,
+  int user_specified_threadidx = 0
 );
 
 const int ERR_PROB_SHAPE = 1;
@@ -50,7 +52,9 @@ void mul(
   int thread_k = -1,
   int thread_n = -1,
   int sms = -1,
-  int max_par = 8
+  int max_par = 8,
+  int user_specified_blockidx = 0,
+  int user_specified_threadidx = 0
 ) {
   int prob_m = A.size(0);
   int prob_n = C.size(1);
@@ -74,7 +78,9 @@ void mul(
     thread_k,
     thread_n,
     sms,
-    max_par
+    max_par,
+    user_specified_blockidx,
+    user_specified_threadidx
   );
   if (err == ERR_PROB_SHAPE) {
     AT_ERROR(

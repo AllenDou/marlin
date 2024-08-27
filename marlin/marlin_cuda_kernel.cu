@@ -202,8 +202,14 @@ __global__ void Marlin(
   int  prob_m /*1024*/, // batch dimension m
   int  prob_n /*4096*/, // output dimension n
   int  prob_k /*4096*/, // reduction dimension k
-  int* locks /* 0 * 512*/// extra global storage for barrier synchronization 
+  int* locks /* 0 * 512*/ ,// extra global storage for barrier synchronization 
+  int  user_specified_blockidx,
+  int  user_specified_threadidx
 ) {
+  if (0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && \
+  threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
+    printf("\r>prob_m=%d prob_k=%d prob_n=%d", prob_m, prob_k, prob_n);
+  }
   // Each threadblock processes one "stripe" of the B matrix with (roughly) the same size, which might involve multiple 
   // column "slices" (of width 16 * `thread_n_blocks(16)`). Stripes are defined as shown in the 3x3 matrix 5 SM example: 
   //   0 1 3 
@@ -303,7 +309,7 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   };
   init_slice();
 
-  if (0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 ) {
+  if (0 && blockIdx.x == 1 && blockIdx.y == 0 && blockIdx.z == 0 ) {
     // don't print threadIdx, because code above don't use threadIdx
     printf("\r>slice_row=%d slice_col=%d slice_col_par=%d slice_iters=%d threadIdx.x=%d threadIdx.y=%d threadIdx.z=%d",
     slice_row, slice_col, slice_col_par, slice_iters, threadIdx.x, threadIdx.y, threadIdx.z);
@@ -381,10 +387,10 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   else
     s_sh_rd = 8 * ((threadIdx.x / 32) % (thread_n_blocks / 4)) + (threadIdx.x % 32) % 4;
   
-  if (1 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && \
-  threadIdx.x == 8 && threadIdx.y == 0 && threadIdx.z == 0) {
-    printf("\r> sm=%d thread=%d a_gl_rd=%d a_sh_wr=%d a_sh_rd=%d    b_gl_rd=%d b_sh_wr=%d b_sh_rd=%d    s_gl_rd=%d s_sh_wr=%d s_sh_rd=%d ",
-  blockIdx.x, threadIdx.x, a_sh_wr, a_sh_rd, b_gl_rd, b_sh_wr, b_sh_rd, s_gl_rd, s_sh_wr, s_sh_rd);
+  if (1 && blockIdx.x == 1/*user_specified_blockidx*/ && blockIdx.y == 0 && blockIdx.z == 0 && \
+  threadIdx.x == 0/*user_specified_threadidx*/ && threadIdx.y == 0 && threadIdx.z == 0) {
+    printf("\r> sm=%d thread=%d a_gl_rd=%d a_sh_wr=%d a_sh_rd=%d    b_gl_rd=%d b_sh_wr=%d b_sh_rd=%d    s_gl_rd=%d s_sh_wr=%d s_sh_rd=%d slice_row=%d slice_col=%d",
+  blockIdx.x, threadIdx.x, a_gl_rd, a_sh_wr, a_sh_rd, b_gl_rd, b_sh_wr, b_sh_rd, s_gl_rd, s_sh_wr, s_sh_rd, slice_row, slice_col);
   }
   
   // Precompute which thread should not read memory in which iterations; this is needed if there are more threads than
@@ -788,7 +794,7 @@ const int SHARED_MEM = 96 * 1024; // max shared memory on compute capability 8.6
     ><<<blocks/*=92(sm)*/, THREADS, SHARED_MEM, stream/*0*/>>>( \
       A_ptr, B_ptr, C_ptr, s_ptr, \
       prob_m/*1024*/, prob_n/*4096*/, prob_k/*4096*/, \
-      locks \
+      locks, user_specified_blockidx, user_specified_threadidx \
     ); \
   }
 
@@ -810,7 +816,9 @@ int marlin_cuda(
   int thread_k = -1,
   int thread_n = -1,
   int sms = -1,
-  int max_par = 16 /*16*/
+  int max_par = 16, /*16*/
+  int user_specified_blockidx = 0,
+  int user_specified_threadidx = 0
 ) {
   int tot_m = prob_m; // 25600
   int tot_m_blocks = ceildiv(tot_m, 16); // 25600/16 = 1600
