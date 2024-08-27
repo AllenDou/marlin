@@ -220,8 +220,8 @@ __global__ void Marlin(
     prob_m = 16 * thread_m_blocks; // 16*4 = 64
   }
 
-  int k_tiles/*64*/ = prob_k / 16 / thread_k_blocks/*4*/;  // 4096/16/4  = 64   16个数一个单位
-  int n_tiles/*16*/ = prob_n / 16 / thread_n_blocks/*16*/; // 4096/16/16 = 16   16个数一个单位
+  int k_tiles/*64 fp16 per thread*/ = prob_k / 16 / thread_k_blocks/*4*/;  // 4096/16/4  = 64   16个数一个单位
+  int n_tiles/*16 fp16 per thread*/ = prob_n / 16 / thread_n_blocks/*16*/; // 4096/16/16 = 16   16个数一个单位
   // a weight tile size is 64*256
   // a input tile size is 64*64
   // no matter input or weight, m k n dimension are all divide by 16, to match gpu instrction mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32
@@ -309,32 +309,37 @@ k_tiles=%d n_tiles=%d parallel=%d", \
 
 
   /* A related. */
-  int a_gl_stride /*512*/ = prob_k /*4096*/ / 8; // stride of the A matrix in global memory
+  // 8 fp16's is 128bit equal 1 int4(4*32) 128bit
+  /*******/ int a_gl_stride /*512 int4*/ = prob_k /*4096*/ / 8; // stride of the A matrix in global memory
   // We typically use `constexpr` to indicate that this value is a compile-time constant
-  constexpr int a_sh_stride /*8*/ = 16 * thread_k_blocks/*4*/ / 8; // stride of an A matrix tile in shared memory
-  constexpr int a_gl_rd_delta_o /*8*/ = 16 * thread_k_blocks/*4*/ / 8; // delta between subsequent A tiles in global memory
-  int a_gl_rd_delta_i /*16384*/ = a_gl_stride * (threads /*256*/ / a_gl_rd_delta_o); // between subsequent accesses within a tile
-  constexpr int a_sh_wr_delta /*256*/ = a_sh_stride * (threads / a_gl_rd_delta_o); // between shared memory writes
-  constexpr int a_sh_rd_delta_o /*4*/ = 2 * ((threads / 32) / (thread_n_blocks/*16*/ / 4)); // between shared memory tile reads
-  constexpr int a_sh_rd_delta_i /*128*/ = a_sh_stride * 16; // within a shared memory tile
-  constexpr int a_sh_stage /*512*/= a_sh_stride * (16 * thread_m_blocks); // overall size of a tile
-  constexpr int a_sh_wr_iters /*2*/ = ceildiv(a_sh_stage, a_sh_wr_delta); // number of shared write iterations for a tile
+  constexpr int a_sh_stride /*8 thread for one row of A*/ = 16 * thread_k_blocks/*4*/ / 8; // stride of an A matrix tile in shared memory
+  constexpr int a_gl_rd_delta_o /* 8 thread for one row of A*/ = 16 * thread_k_blocks/*4*/ / 8; // delta between subsequent A tiles in global memory
+  /*******/ int a_gl_rd_delta_i /*16384 int4(include many A tile) every 256 threads*/ = a_gl_stride * (threads /*256*/ / a_gl_rd_delta_o); // between subsequent accesses within a tile
+  constexpr int a_sh_wr_delta /*256 thread*/ = a_sh_stride * (threads / a_gl_rd_delta_o); // between shared memory writes
+  constexpr int a_sh_rd_delta_o /*4 thread per block*/ = 2 * ((threads / 32) / (thread_n_blocks/*16*/ / 4)); // between shared memory tile reads
+  constexpr int a_sh_rd_delta_i /*128 thread for 16 row*/ = a_sh_stride * 16; // within a shared memory tile
+  constexpr int a_sh_stage /*512 int4*/= a_sh_stride * (16 * thread_m_blocks/*4*/); // overall size of a tile
+  // so, a A's tile is 64*8(int4) = 64*8*8fp16=4096fp16
+  // A's size is 64*4096(fp16) = 32768(int4) = 2*16384(int4) 
+  constexpr int a_sh_wr_iters /*2 int4 per a thread*/ = ceildiv(a_sh_stage, a_sh_wr_delta); // number of shared write iterations for a tile
 
   /* B related. */
-  int b_gl_stride /*2048*/ = 16 * prob_n/*4096*/ / 32;
-  constexpr int b_sh_stride /*128*/ = 32 * thread_n_blocks/*16*/ / 4;
-  int b_gl_rd_delta_o /*8196*/ = b_gl_stride /*2048*/ * thread_k_blocks /*4*/;
-  int b_gl_rd_delta_i /*4096*/ = b_gl_stride * (threads/*256*/ / b_sh_stride);
+  // 1int4 = 8fp16, 1*fp16 == 4*4 int(4bit), so 1int4 = 32int(4bit)
+  /*******/ int b_gl_stride /*2048 int4*/ = 16 * prob_n/*4096*/ / 32;
+  constexpr int b_sh_stride /*128 thread for one row of B*/ = 32 * thread_n_blocks/*16*/ / 4;
+  /*******/ int b_gl_rd_delta_o /*8196 int4*/ = b_gl_stride /*2048*/ * thread_k_blocks /*4*/;
+  /*******/ int b_gl_rd_delta_i /*4096 int4*/ = b_gl_stride /*2048*/ * (threads/*256*/ / b_sh_stride/*128*/);
   constexpr int b_sh_wr_delta /*256*/ = threads;
   constexpr int b_sh_rd_delta /*256*/ = threads;
-  constexpr int b_sh_stage /*512*/ = b_sh_stride * thread_k_blocks;
-  constexpr int b_sh_wr_iters /*2*/ = b_sh_stage / b_sh_wr_delta;
+  constexpr int b_sh_stage /*512*/ = b_sh_stride/*128*/ * thread_k_blocks/*4*/;
+  constexpr int b_sh_wr_iters /*2*/ = b_sh_stage/*512*/ / b_sh_wr_delta/*256*/;
 
   /* scale related. */
-  int s_gl_stride /*512*/ = prob_n / 8;
-  constexpr int s_sh_stride /*32*/ = 16 * thread_n_blocks / 8;
+  // 1 int4 = 8fp16 
+  /*******/ int s_gl_stride /*512*/ = prob_n / 8;
+  constexpr int s_sh_stride /*32*/ = 16 * thread_n_blocks/*16*/ / 8;
   constexpr int s_sh_stage /*32*/ = s_sh_stride;
-  int s_gl_rd_delta /*512*/ = s_gl_stride;
+  /*******/ int s_gl_rd_delta /*512*/ = s_gl_stride;
 
   if (0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && \
   threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
@@ -348,18 +353,18 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
 
   // A related.
   // Global A read index of current thread.
-  int a_gl_rd = a_gl_stride/*512*/ * (threadIdx.x / a_gl_rd_delta_o/*8*/) + (threadIdx.x % a_gl_rd_delta_o/*8*/);
+  int a_gl_rd = a_gl_stride/*512*/ * (threadIdx.x / a_gl_rd_delta_o/*8 thread for a row*/) + (threadIdx.x % a_gl_rd_delta_o/*8*/);
   a_gl_rd += a_gl_rd_delta_o/*8*/ * slice_row;
   // Shared write index of current thread.
   int a_sh_wr = a_sh_stride/*8*/ * (threadIdx.x / a_gl_rd_delta_o/*8*/) + (threadIdx.x % a_gl_rd_delta_o/*8*/);
   // Shared read index.
   int a_sh_rd = a_sh_stride/*8*/ * ((threadIdx.x % 32) % 16) + (threadIdx.x % 32) / 16;
-  a_sh_rd += 2 * ((threadIdx.x / 32) / (thread_n_blocks / 4));
+  a_sh_rd += 2 * ((threadIdx.x / 32) / (thread_n_blocks/*16*/ / 4));
 
   // B related.
   int b_gl_rd = b_gl_stride/*2048*/ * (threadIdx.x / b_sh_stride/*128*/) + (threadIdx.x % b_sh_stride/*128*/);
-  b_gl_rd += b_sh_stride * slice_col;
-  b_gl_rd += b_gl_rd_delta_o * slice_row;
+  b_gl_rd += b_sh_stride/*128*/ * slice_col;
+  b_gl_rd += b_gl_rd_delta_o/*8192*/ * slice_row;
   int b_sh_wr = threadIdx.x;
   int b_sh_rd = threadIdx.x;
 
