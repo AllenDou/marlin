@@ -870,23 +870,24 @@ int marlin_cuda(
                                  // 512 个 0
 
   int ret = 0;
-  for (int i = 0; i < tot_m_blocks/*1600*/; i += 4) {
+  for (int i = 0; i < tot_m_blocks/*1600*/; i += 2) {
     int thread_m_blocks = tot_m_blocks/*1600*/ - i;
     prob_m = tot_m/*25600*/ - 16 * i;
     int par = 1;
-    if (thread_m_blocks > 4) {
+    if (thread_m_blocks > 2) {
+      printf("---\n");
       // Note that parallel > 1 currently only works for inputs without any padding
-      par = (16 * thread_m_blocks - pad) / 64;
+      par = (16 * thread_m_blocks - pad) / 32;
       if (par > max_par/*16*/)
         par = max_par/*16*/;
-      prob_m = 64 * par;
-      i += 4 * (par - 1);
-      thread_m_blocks = 4;
+      prob_m = 32 * par;
+      i += 2 * (par - 1);
+      thread_m_blocks = 2;
     }
 
     if (print_enable) {
-      printf("prob_m=%d, prob_n=%d, prob_k=%d thread_m_blocks=%d par=%d\n",
-      prob_m, prob_n, prob_k, thread_m_blocks, par);
+      printf("prob_m=%d, prob_n=%d, prob_k=%d thread_m_blocks=%d par=%d i=%d\n",
+      prob_m, prob_n, prob_k, thread_m_blocks, par, i);
     }
 
     // For compilation speed, we only define the kernel configurations that have seemed useful (in terms of performance)
@@ -902,8 +903,8 @@ int marlin_cuda(
     //CALL_IF(3, 16,  4,  8)
     //CALL_IF(4, 16,  4, -1)
 
-    CALL_IF(4, 16,  4,  8)
-    //CALL_IF(2, 16,  4,  8)
+    //CALL_IF(4, 16,  4,  8)
+    CALL_IF(2, 16,  4,  8)
 
     A_ptr += 16 * thread_m_blocks * (prob_k / 8) * par/*16*/;
     C_ptr += 16 * thread_m_blocks * (prob_n / 8) * par/*16*/;
