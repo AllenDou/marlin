@@ -782,7 +782,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
 
 // 8 warps are a good choice since every SM has 4 schedulers and having more than 1 warp per schedule allows some more
 // latency hiding. At the same time, we want relatively few warps to have many registers per warp and small tiles.
-const int THREADS = 256;
+const int THREADS = 128;
 const int STAGES = 4; // 4 pipeline stages fit into shared memory
 const int SHARED_MEM = 96 * 1024; // max shared memory on compute capability 8.6 (< 8.0)
 
@@ -850,7 +850,7 @@ int marlin_cuda(
   //thread_n = 256;
 
   int thread_k_blocks = 4;  //thread_k / 16; // 64/16 = 4
-  int thread_n_blocks = 16; //thread_n / 16; // 256/16 = 16
+  int thread_n_blocks = 8; //thread_n / 16; // 256/16 = 16
   int group_blocks = (groupsize == -1) ? -1 : groupsize / 16; // 128/16 = 8
   int blocks = sms; // = 92
 
@@ -902,7 +902,8 @@ int marlin_cuda(
     //CALL_IF(3, 16,  4,  8)
     //CALL_IF(4, 16,  4, -1)
 
-    CALL_IF(4, 16,  4,  8)
+    CALL_IF(4, 8,  4,  8)
+    //CALL_IF(4, 16,  4,  8)
     //CALL_IF(2, 16,  4,  8)
 
     A_ptr += 16 * thread_m_blocks * (prob_k / 8) * par/*16*/;
