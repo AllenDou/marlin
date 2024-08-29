@@ -10,6 +10,7 @@ if True:
             for k in range(0, K):
                 # k loop should be outside of Mtile & Ntile,
                 # cause, Mtile & Ntile wile be load in-chip.
+                print(f"{k=}")
                 for i in range(0, Mtile):
                     for j in range(0, Ntile):
                         row = m + i
