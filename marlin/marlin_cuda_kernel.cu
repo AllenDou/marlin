@@ -95,7 +95,7 @@ __device__ inline void mma(const FragA& a_frag, const FragB& frag_b, FragC& frag
   const uint32_t* b = reinterpret_cast<const uint32_t*>(&frag_b);
   float* c = reinterpret_cast<float*>(&frag_c);
   asm volatile(
-    "mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 "
+    "mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 " // C(fp32) = A(fp16)*B(fp16) + C(fp32)
     "{%0,%1,%2,%3}, {%4,%5,%6,%7}, {%8,%9}, {%10,%11,%12,%13};\n"
     : "=f"(c[0]), "=f"(c[1]), "=f"(c[2]), "=f"(c[3])
     :  "r"(a[0]),  "r"(a[1]),  "r"(a[2]),  "r"(a[3]),  "r"(b[0]),  "r"(b[1]),
