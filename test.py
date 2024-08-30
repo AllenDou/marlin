@@ -60,10 +60,12 @@ class Test(unittest.TestCase):
         #print('% 5d % 6d % 6d % 4d % 4d % 4d' % (m, n, k, thread_k, thread_n, groupsize))
         A = torch.randn((m, k), dtype=torch.half, device=DEV)
         B_ref, B, s = gen_quant4(k, n, groupsize=groupsize)
+        # B_ref [4096,4096] fp16 
+        # B     [256, 8192] int32, 4096*4096 = 256*8192*8
         C = torch.zeros((m, n), dtype=torch.half, device=DEV)
         C_ref = torch.matmul(A, B_ref)
         workspace = torch.zeros(n // 128 * 16, device=DEV)
-        #import pdb; pdb.set_trace()
+        import pdb; pdb.set_trace()
         marlin.mul(A, B, C, s, workspace, thread_k, thread_n, -1, 16, print_eable, user_specified_blockidx, user_specified_threadidx)
         torch.cuda.synchronize()
         self.assertLess(torch.mean(torch.abs(C - C_ref)) / torch.mean(torch.abs(C_ref)), 0.08)

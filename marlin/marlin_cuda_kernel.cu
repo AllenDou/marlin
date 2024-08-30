@@ -321,8 +321,8 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   // 8 fp16's is 128bit equal 1 int4(4*32) 128bit
   /*******/ int a_gl_stride /*512 int4*/ = prob_k /*4096*/ / 8; // stride of the A matrix in global memory
   // We typically use `constexpr` to indicate that this value is a compile-time constant
-  constexpr int a_sh_stride /*8 thread for one row of A*/ = 16 * thread_k_blocks/*4*/ / 8; // stride of an A matrix tile in shared memory
-  constexpr int a_gl_rd_delta_o /* 8 thread for one row of A*/ = 16 * thread_k_blocks/*4*/ / 8; // delta between subsequent A tiles in global memory
+  constexpr int a_sh_stride /*8 int4 of A*/ = 16 * thread_k_blocks/*4*/ / 8 /*1int4 = 8fp16*/; // stride of an A matrix tile in shared memory
+  constexpr int a_gl_rd_delta_o /* 8 int4 of A*/ = 16 * thread_k_blocks/*4*/ / 8 /*1int4 = 8fp16*/; // delta between subsequent A tiles in global memory
   /*******/ int a_gl_rd_delta_i /*16384 int4(include many A tile) every 256 threads*/ = a_gl_stride * (threads /*256*/ / a_gl_rd_delta_o); // between subsequent accesses within a tile
   constexpr int a_sh_wr_delta /*256 thread*/ = a_sh_stride * (threads / a_gl_rd_delta_o); // between shared memory writes
   constexpr int a_sh_rd_delta_o /*4 thread per block*/ = 2 * ((threads / 32) / (thread_n_blocks/*16*/ / 4)); // between shared memory tile reads
@@ -333,8 +333,11 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   constexpr int a_sh_wr_iters /*2 iter*/ = ceildiv(a_sh_stage, a_sh_wr_delta); // number of shared write iterations for a tile
 
   /* B related. */
-  // 1int4 = 8fp16, 1*fp16 == 4*4 int(4bit), so 1int4 = 32int(4bit)
-  /*******/ int b_gl_stride /*2048 int4*/ = 16 * prob_n/*4096*/ / 32;
+  // 1int4 = 8fp16, 1*fp16 == 4*int4(4bit), so 1int4 = 32int(4bit)
+  // !!! notice
+  // real B shape is [4096, 4096]fp16, offline processed to [4096/16, 4096*16]fp16 = [256, 65536]fp16 = [256,8192]int32 = [256,2048]int4(4个int)
+  //
+  /*******/ int b_gl_stride /*2048 int4*/ = 16 * prob_n/*4096*/ / 32// same with above;
   constexpr int b_sh_stride /*128 thread for one row of B*/ = 32 * thread_n_blocks/*16*/ / 4;
   /*******/ int b_gl_rd_delta_o /*8196 int4*/ = b_gl_stride /*2048*/ * thread_k_blocks /*4*/;
   /*******/ int b_gl_rd_delta_i /*4096 int4*/ = b_gl_stride /*2048*/ * (threads/*256*/ / b_sh_stride/*128*/);
