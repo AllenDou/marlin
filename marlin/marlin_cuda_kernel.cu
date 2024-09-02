@@ -320,21 +320,30 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   /* A related. */
   // 8 fp16's is 128bit equal 1 int4(4*32) 128bit
   /*******/ int a_gl_stride /*512 int4*/ = prob_k /*4096*/ / 8; // stride of the A matrix in global memory
+                          // k维度数量/8 = 512 个int4
   // We typically use `constexpr` to indicate that this value is a compile-time constant
   constexpr int a_sh_stride /*8 int4 of A*/ = 16 * thread_k_blocks/*4*/ / 8 /*1int4 = 8fp16*/;
                           // stride of an A matrix tile in shared memory
+                          // a tile一行 4*16=64 fp16/8 = 8int4
   constexpr int a_gl_rd_delta_o /* 8 int4 of A*/ = 16 * thread_k_blocks/*4*/ / 8 /*1int4 = 8fp16*/;
                           // delta between subsequent A tiles in global memory
+                          // A矩阵两个tile 左上角距离, 相当于一个a tile的a_sh_stride.
   /*******/ int a_gl_rd_delta_i /*16384 int4(include many A tile) every 256 threads*/ \
               = a_gl_stride * (threads /*256*/ / a_gl_rd_delta_o); // between subsequent accesses within a tile
-  constexpr int a_sh_wr_delta /*256 thread*/ = a_sh_stride * (threads / a_gl_rd_delta_o); // between shared memory writes
+                          // a tile 按照a_sh_wr_iters=2切分左右两份, 一份的stride是16384
+  constexpr int a_sh_wr_delta /*256 int4*/ = a_sh_stride/*8*/ * (threads / a_gl_rd_delta_o); // between shared memory writes
+                          // a tile 被切分成左右两块, 一块的size
   constexpr int a_sh_rd_delta_o /*4 thread per block*/ = 2 * ((threads / 32) / (thread_n_blocks/*16*/ / 4));
                           // between shared memory tile reads
+                          // a tile 被切分左右两块, 两块的横向距离就是2个block, 2*16=32fp16 /8 = 4int4
   constexpr int a_sh_rd_delta_i /*128 thread for 16 row*/ = a_sh_stride * 16; // within a shared memory tile
+                          // a tile thread_m_blocks = 4, 每block=1时, 16*64/8=128int4
   constexpr int a_sh_stage /*512 int4*/= a_sh_stride * (16 * thread_m_blocks/*4*/); // overall size of a tile
+                          // a tile 的整个size 512个int4
   // so, a A's tile is 64*8(int4) = 64*8*8fp16=4096fp16
   // A's size is 64*4096(fp16) = 32768(int4) = 2*16384(int4) 
   constexpr int a_sh_wr_iters /*2 iter*/ = ceildiv(a_sh_stage, a_sh_wr_delta); // number of shared write iterations for a tile
+                          // a tile 整个size / a tile里一块的size = 2块
 
   /* B related. */
   // 1int4 = 8fp16, 1*fp16 == 4*int4(4bit), so 1int4 = 32int(4bit)
@@ -342,20 +351,27 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   // real B shape is [4096, 4096]fp16, offline processed to [4096/16, 4096*16]fp16 = [256, 65536]fp16 = [256,8192]int32 = [256,2048]int4(4个int)
   //
   /*******/ int b_gl_stride /*2048 int4*/ = 16/*reshaped, [k/16, n*16]*/ * prob_n/*4096*/ / 32// same with above;
+                          // B reshape后, N维度数量/32 = 多少个int4
   constexpr int b_sh_stride /*128 thread for one row of B*/ = 32/*32 threads in a warp*/ * thread_n_blocks/*16*/ / 4;
+                          // 每行B, 有128个thread, 相当于4个warp
   /*******/ int b_gl_rd_delta_o /*8196 int4*/ = b_gl_stride /*2048*/ * thread_k_blocks /*4*/;
+                          // between subsequent A tiles in global memory, 比如一个slice里上下两个tile的delta
   /*******/ int b_gl_rd_delta_i /*4096 int4*/ = b_gl_stride /*2048*/ * (threads/*256*/ / b_sh_stride/*128*/);
+                          //一个b tile 被切分成两个iter, 两个iter之间的delta, 其实就是 b_gl_rd_delta_o/b_sh_wr_iters(2) 
   constexpr int b_sh_wr_delta /*256 thread*/ = threads;
+                          // b 每个tile被切成上下两块, 每块用用掉所有256thread 也就是 8warp
   constexpr int b_sh_rd_delta /*256 thread*/ = threads;
+                          // b 每个tile被切成上下两块, 每块用用掉所有256thread 也就是 8warp
   constexpr int b_sh_stage /*512 int4 in this '状态'*/ = b_sh_stride/*128*/ * thread_k_blocks/*4*/; // overall size of a tile
   constexpr int b_sh_wr_iters /*2 iter, 256个线程要iter 2次才能写完*/ = b_sh_stage/*512*/ / b_sh_wr_delta/*256*/;
 
   /* scale related. */
   // 1 int4 = 8fp16 
-  /*******/ int s_gl_stride /*512*/ = prob_n / 8;
-  constexpr int s_sh_stride /*32*/ = 16 * thread_n_blocks/*16*/ / 8;
-  constexpr int s_sh_stage /*32*/ = s_sh_stride;
-  /*******/ int s_gl_rd_delta /*512*/ = s_gl_stride;
+  // s shape [4096/128, 4096] fp16 = [32, 4096] fp16
+  /*******/ int s_gl_stride /*512 个int4*/ = prob_n/*4096*/ / 8;
+  constexpr int s_sh_stride /*32 个int4*/ = 16 * thread_n_blocks/*16*/ / 8;
+  constexpr int s_sh_stage /*32 个int4*/ = s_sh_stride;
+  /*******/ int s_gl_rd_delta /*512 个int4*/ = s_gl_stride;
 
   if (0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && \
   threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
@@ -406,7 +422,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   // required for a certain tilesize or when the batchsize is not a multiple of 16.
   bool a_sh_wr_pred[a_sh_wr_iters/*2*/];
   #pragma unroll
-  for (int i = 0; i < a_sh_wr_iters; i++)
+  for (int i = 0; i < a_sh_wr_iters/*2*/; i++)
     a_sh_wr_pred[i] = a_sh_wr_delta/*256*/ * i + a_sh_wr < a_sh_stride/*8*/ * prob_m/*64*/;
   bool s_sh_wr_pred = threadIdx.x < s_sh_stride;
 
@@ -418,17 +434,19 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     int row = i / a_gl_rd_delta_o;
     return a_gl_rd_delta_o * row + (i % a_gl_rd_delta_o) ^ row;
   };
+
   // Since the computation of this remapping is non-trivial and, due to our main loop unrolls, all shared memory 
   // accesses are static, we simply precompute both transformed reads and writes.
   int a_sh_wr_trans[a_sh_wr_iters];
   #pragma unroll
-  for (int i = 0; i < a_sh_wr_iters; i++)
+  for (int i = 0; i < a_sh_wr_iters/*2*/; i++)
     a_sh_wr_trans[i] = transform_a(a_sh_wr_delta * i + a_sh_wr);
+
   int a_sh_rd_trans[b_sh_wr_iters][thread_m_blocks];
   #pragma unroll
-  for (int i = 0; i < b_sh_wr_iters; i++) {
+  for (int i = 0; i < b_sh_wr_iters/*2*/; i++) {
     #pragma unroll
-    for (int j = 0; j < thread_m_blocks; j++)
+    for (int j = 0; j < thread_m_blocks/*4*/; j++)
       a_sh_rd_trans[i][j] = transform_a(a_sh_rd_delta_o * i + a_sh_rd_delta_i * j + a_sh_rd); 
   }
 
