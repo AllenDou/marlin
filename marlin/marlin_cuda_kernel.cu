@@ -441,6 +441,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   int4* sh_b = sh_a + (stages/*4*/ * a_sh_stage/*512*/);
   int4* sh_s = sh_b + (stages/*4*/ * b_sh_stage/*512*/);
   // Register storage for double buffer of shared memory reads. 
+  //using FragA = Vec<half2, 4>;
   FragA frag_a[2][thread_m_blocks/*4*/];
   I4 frag_b_quant[2];
   FragC frag_c[thread_m_blocks/*4*/][4][2];
@@ -512,6 +513,8 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     #pragma unroll
     for (int i = 0; i < thread_m_blocks; i++)
       ldsm4(frag_a[k % 2][i], &sh_a_stage[a_sh_rd_trans[k % b_sh_wr_iters][i]]);
+
+    // fetch b
     int4* sh_b_stage = sh_b + b_sh_stage * pipe;
     frag_b_quant[k % 2] = *reinterpret_cast<I4*>(&sh_b_stage[b_sh_rd_delta * (k % b_sh_wr_iters) + b_sh_rd]);
   };
@@ -716,12 +719,14 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     for (int pipe = 0; pipe < stages/*4*/;) {
       #pragma unroll
       for (int k = 0; k < b_sh_wr_iters/*2*/; k++) {
-        fetch_to_registers(k + 1, pipe % stages);
-        if (k == b_sh_wr_iters - 2) {
-          fetch_to_shared((pipe + stages - 1) % stages, pipe, slice_iters >= stages/*4*/);
+        fetch_to_registers(k + 1, pipe % stages/*4*/);
+        // k 的range是 0和1
+        if (k == b_sh_wr_iters - 2 /*k=0*/) {
+          fetch_to_shared((pipe + stages/*4*/ - 1) % stages/*4*/, pipe, slice_iters >= stages/*4*/);
           pipe++;
           wait_for_stage();
         }
+        //!!! when k==1, no pipe++
         matmul(k);
       }
       slice_iters--;
