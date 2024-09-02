@@ -360,8 +360,10 @@ k_tiles=%d n_tiles=%d parallel=%d", \
                           //一个b tile 被切分成两个iter, 两个iter之间的delta, 其实就是 b_gl_rd_delta_o/b_sh_wr_iters(2) 
   constexpr int b_sh_wr_delta /*256 thread*/ = threads;
                           // b 每个tile被切成上下两块, 每块用用掉所有256thread 也就是 8warp
+                          // or 另一种解释, b被拆分成两块, 2*16 * 16*16 fp16/32 = 256 个int4, 这是A 4*2, B是2*16(都是blocks)
   constexpr int b_sh_rd_delta /*256 thread*/ = threads;
                           // b 每个tile被切成上下两块, 每块用用掉所有256thread 也就是 8warp
+                          // or 另一种解释, b被拆分成两块, 2*16 * 16*16 fp16/32 = 256 个int4, 这是A 4*2, B是2*16(都是blocks)
   constexpr int b_sh_stage /*512 int4 in this '状态'*/ = b_sh_stride/*128*/ * thread_k_blocks/*4*/; // overall size of a tile
   constexpr int b_sh_wr_iters /*2 iter, 256个线程要iter 2次才能写完*/ = b_sh_stage/*512*/ / b_sh_wr_delta/*256*/;
 
@@ -387,21 +389,26 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   // Global A read index of current thread.
   int a_gl_rd = a_gl_stride/*512*/ * (threadIdx.x / a_gl_rd_delta_o/*8 thread for a row*/) + (threadIdx.x % a_gl_rd_delta_o/*8*/);
   a_gl_rd += a_gl_rd_delta_o/*8*/ * slice_row /*52 when blockIdx.x == 1*/;
+        // 当前线程的global read坐标
   // Shared write index of current thread.
   int a_sh_wr = a_sh_stride/*8*/ * (threadIdx.x / a_gl_rd_delta_o/*8*/) + (threadIdx.x % a_gl_rd_delta_o/*8*/);
+        // 当前线程的shared write坐标
   // Shared read index.
   int a_sh_rd = a_sh_stride/*8*/ * ((threadIdx.x % 32) % 16) + (threadIdx.x % 32) / 16;
   a_sh_rd += 2 * ((threadIdx.x / 32) / (thread_n_blocks/*16*/ / 4));
+        // 当前线程的shared read坐标
 
   // B related.
   int b_gl_rd = b_gl_stride/*2048*/ * (threadIdx.x / b_sh_stride/*128*/) + (threadIdx.x % b_sh_stride/*128*/);
   b_gl_rd += b_sh_stride/*128*/ * slice_col;
   b_gl_rd += b_gl_rd_delta_o/*8192*/ * slice_row;
+        // 当前线程的global read坐标
   int b_sh_wr = threadIdx.x;
   int b_sh_rd = threadIdx.x;
 
   // scale related
   int s_gl_rd = s_gl_stride/*512*/ * ((thread_k_blocks/*4*/ * slice_row) / group_blocks/*8*/) + s_sh_stride/*32*/ * slice_col + threadIdx.x;
+        // 当前线程的global read坐标
   int s_sh_wr = threadIdx.x;
   int s_sh_rd;
   // We use a different scale layout for grouped and column-wise quantization as we scale a `half2` tile in column-major
