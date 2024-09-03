@@ -3,11 +3,30 @@
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 #include <iostream>
+
+template <typename T, int n>
+struct Vec {
+  T elems[n];
+  __device__ T& operator[](int i) {
+    return elems[i];
+  }
+};
+using I4 = Vec<int, 4>;
+using FragA = Vec<half2, 4>;
+using FragB = Vec<half2, 2>;
+using FragC = Vec<float, 4>;
+using FragS = Vec<half2, 1>; // quantization scales
+
 int slice_iters = 64;
 int stages = 4;
 int b_sh_wr_iters = 2;
+int thread_m_blocks = 4;
 
 int main() {
+  /*Vec<half2, 4>*/ FragA frag_a[2][thread_m_blocks/*4*/];
+  /*Vec<int, 4>*/   I4 frag_b_quant[2];
+  /*Vec<float, 4>*/ FragC frag_c[thread_m_blocks/*4*/][4][2];
+  /*Vec<half2, 1>*/ FragS frag_s[2][4];
 
   while (slice_iters/* one iter for a tile */) {
     // We unroll over both the global fetch and the register load pipeline to ensure all shared memory accesses are
