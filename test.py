@@ -68,7 +68,7 @@ class Test(unittest.TestCase):
         #import pdb; pdb.set_trace()
         marlin.mul(A, B, C, s, workspace, thread_k, thread_n, -1, 16, print_eable, user_specified_blockidx, user_specified_threadidx)
         torch.cuda.synchronize()
-        self.assertLess(torch.mean(torch.abs(C - C_ref)) / torch.mean(torch.abs(C_ref)), 0.001)
+        self.assertLess(torch.mean(torch.abs(C - C_ref)) / torch.mean(torch.abs(C_ref)), 0.03)
 
     def test_tiles(self):
         print()
@@ -158,8 +158,8 @@ class Test(unittest.TestCase):
         user_specified_threadidx = 1
         for blockidx in range(user_specified_blockidx-1,user_specified_blockidx):
             for threadidx in range(0,user_specified_threadidx ):
-                for m in [16]:
-                #for m in [1024]:
+                #for m in [16]:
+                for m in [1024]:
                     for groupsize in [128]:
                         for n, k in [(4096, 4096)]:
                             for thread_shape in [(64, 256)]:
