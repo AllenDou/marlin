@@ -52,7 +52,7 @@ using FragS = Vec<half2, 1>; // quantization scales
 // Predicated asynchronous global->shared copy; used for inputs A where we apply predication to handle batchsizes that
 // are not multiples of 16.
 __device__ inline void cp_async4_pred(void* smem_ptr, const void* glob_ptr, bool pred = true) {
-  const int BYTES = 16;
+  const int BYTES = 16; // 16B = 128bit  =  1int4(4int32) = 128bit
   uint32_t smem = static_cast<uint32_t>(__cvta_generic_to_shared(smem_ptr));
   asm volatile(
     "{\n"
@@ -67,7 +67,7 @@ __device__ inline void cp_async4_pred(void* smem_ptr, const void* glob_ptr, bool
 // quantized weights B, which are only accessed precisely once and should thus not pollute the L2 cache which we need
 // for inputs A and outputs C. 
 __device__ inline void cp_async4_stream(void* smem_ptr, const void* glob_ptr) {
-  const int BYTES = 16; // 16B = 128bit
+  const int BYTES = 16; // 16B = 128bit  =  1int4(4int32) = 128bit
   uint32_t smem = static_cast<uint32_t>(__cvta_generic_to_shared(smem_ptr));
   asm volatile(
     "{\n"
@@ -459,9 +459,9 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
 
   // Since B-accesses have non-constant stride they have to be computed at runtime; we break dependicies between
   // subsequent accesses with a tile by maintining multiple pointers (we have enough registers), a tiny optimization.
-  const int4* B_ptr[b_sh_wr_iters];
+  const int4* B_ptr[b_sh_wr_iters/*2*/];
   #pragma unroll
-  for (int i = 0; i < b_sh_wr_iters; i++)
+  for (int i = 0; i < b_sh_wr_iters/*2*/; i++)
     B_ptr[i] = B + b_gl_rd_delta_i/*4096*/ * i + b_gl_rd/* by threadIdx.x*/;
 
   extern __shared__ int4 sh[];
