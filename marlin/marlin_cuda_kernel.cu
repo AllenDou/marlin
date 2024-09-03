@@ -538,7 +538,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     }
 
     // fetch a
-    int4* sh_a_stage = sh_a + a_sh_stage * pipe;
+    int4* sh_a_stage = sh_a + a_sh_stage/*512*/ * pipe;
     #pragma unroll
     for (int i = 0; i < thread_m_blocks; i++)
       ldsm4(frag_a[k % 2][i], &sh_a_stage[a_sh_rd_trans[k % b_sh_wr_iters][i]]);

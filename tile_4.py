@@ -29,4 +29,5 @@ for threadIdx_x in range(256):
     s_gl_rd = s_gl_stride * int((thread_k_blocks * slice_row) / group_blocks) + s_sh_stride * slice_col + threadIdx_x
     s_sh_wr = threadIdx_x
     s_sh_rd = 8 * (int(threadIdx_x / 32) % int(thread_n_blocks / 4)) + int((threadIdx_x % 32) / 4)
-    print(f"{threadIdx_x=:3} A:{a_gl_rd=:5} {a_sh_wr=:3} {a_sh_rd=:3}, B:{b_gl_rd=:4} {b_sh_wr=:3} {b_sh_rd=:3}, S:{s_gl_rd=:3} {s_sh_wr=:3} {s_sh_rd=:2}")
+    #s_sh_rd = 8 * (int(threadIdx_x / 32) % int(thread_n_blocks / 4)) + int((threadIdx_x % 32) % 4)
+    print(f"{threadIdx_x=:3}  A:{a_gl_rd=:5} {a_sh_wr=:3} {a_sh_rd=:3},  B:{b_gl_rd=:4} {b_sh_wr=:3} {b_sh_rd=:3},  S:{s_gl_rd=:3} {s_sh_wr=:3} {s_sh_rd=:2}")
