@@ -350,7 +350,7 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   // !!! notice
   // real B shape is [4096, 4096]fp16, offline processed to [4096/16, 4096*16]fp16 = [256, 65536]fp16 = [256,8192]int32 = [256,2048]int4(4个int)
   //
-  /*******/ int b_gl_stride /*2048 int4*/ = 16/*reshaped, [k/16, n*16]*/ * prob_n/*4096*/ / 32// same with above;
+  /*******/ int b_gl_stride /*2048 int4*/ = 16/*reshaped, [k/16, n*16]*/ * prob_n/*4096*/ / 32; // same with above
                           // B reshape后, N维度数量/32 = 多少个int4
   constexpr int b_sh_stride /*128 thread for one row of B*/ = 32/*32 threads in a warp*/ * thread_n_blocks/*16*/ / 4;
                           // 每行B, 有128个thread, 相当于4个warp
@@ -372,7 +372,7 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   // s shape [4096/128, 4096] fp16 = [32, 4096] fp16
   /*******/ int s_gl_stride /*512 个int4*/ = prob_n/*4096*/ / 8;
   constexpr int s_sh_stride /*32 个int4*/ = 16 * thread_n_blocks/*16*/ / 8;
-  constexpr int s_sh_stage /*32 个int4*/ = s_sh_stride;
+  constexpr int s_sh_stage /*32 个int4*/ = s_sh_stride; // 一行就是一个stage
   /*******/ int s_gl_rd_delta /*512 个int4*/ = s_gl_stride;
 
   if (0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && \
@@ -399,7 +399,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
         // 当前线程的shared read坐标
 
   // B related.
-  int b_gl_rd = b_gl_stride/*2048*/ * (threadIdx.x / b_sh_stride/*128*/) + (threadIdx.x % b_sh_stride/*128*/);
+  int b_gl_rd = b_gl_stride/*2048*/ * (threadIdx.x / b_sh_stride /*128*/) + (threadIdx.x % b_sh_stride/*128*/);
   b_gl_rd += b_sh_stride/*128*/ * slice_col;
   b_gl_rd += b_gl_rd_delta_o/*8192*/ * slice_row;
         // 当前线程的global read坐标
@@ -413,7 +413,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   int s_sh_rd;
   // We use a different scale layout for grouped and column-wise quantization as we scale a `half2` tile in column-major
   // layout in the former and in row-major in the latter case.
-  if (group_blocks != -1)
+  if (group_blocks/*8*/ != -1)
     s_sh_rd = 8 * ((threadIdx.x / 32) % (thread_n_blocks / 4)) + (threadIdx.x % 32) / 4;
   else
     s_sh_rd = 8 * ((threadIdx.x / 32) % (thread_n_blocks / 4)) + (threadIdx.x % 32) % 4;
@@ -505,7 +505,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
         B_ptr[i] += b_gl_rd_delta_o;
       }
       // fetch s, Only fetch scales if this tile starts a new group
-      if (group_blocks != -1 && pipe % (group_blocks / thread_k_blocks) == 0) {
+      if (group_blocks/*8*/ != -1 && pipe % (group_blocks/*8*/ / thread_k_blocks/*4*/) == 0) {
         int4* sh_s_stage = sh_s + s_sh_stage * pipe;
         if (s_sh_wr_pred)
           cp_async4_stream(&sh_s_stage[s_sh_wr], &s[s_gl_rd]);
@@ -545,7 +545,9 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
 
     // fetch b
     int4* sh_b_stage = sh_b + b_sh_stage * pipe;
-    frag_b_quant[k % 2] = *reinterpret_cast<I4*>(&sh_b_stage[b_sh_rd_delta * (k % b_sh_wr_iters) + b_sh_rd]);
+    frag_b_quant[k % 2] = *reinterpret_cast<I4*>( \
+        &sh_b_stage[b_sh_rd_delta/*256*/ * (k % b_sh_wr_iters/*2*/) + b_sh_rd/*==threadIdx.x*/] \
+      );
   };
 
   // Execute the actual tensor core matmul of a sub-tile. 
