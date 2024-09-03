@@ -3,7 +3,7 @@
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 #include <iostream>
-int slice_iters = 1;
+int slice_iters = 64;
 int stages = 4;
 int b_sh_wr_iters = 2;
 
@@ -25,11 +25,12 @@ int main() {
         }
         //!!! when k==1, no pipe++
         //matmul(k);
-        printf("matmul 32 mma.\n");
+        printf("matmul 32 mma. pipe=%d k=%d\n", pipe, k);
       }
       slice_iters--;
       if (slice_iters == 0)
         break;
     }
+    printf("----\n");
   }
 }
