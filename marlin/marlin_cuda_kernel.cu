@@ -67,7 +67,7 @@ __device__ inline void cp_async4_pred(void* smem_ptr, const void* glob_ptr, bool
 // quantized weights B, which are only accessed precisely once and should thus not pollute the L2 cache which we need
 // for inputs A and outputs C. 
 __device__ inline void cp_async4_stream(void* smem_ptr, const void* glob_ptr) {
-  const int BYTES = 16;
+  const int BYTES = 16; // 16B = 128bit
   uint32_t smem = static_cast<uint32_t>(__cvta_generic_to_shared(smem_ptr));
   asm volatile(
     "{\n"
@@ -354,7 +354,7 @@ k_tiles=%d n_tiles=%d parallel=%d", \
                           // B reshape后, N维度数量/32 = 多少个int4
   constexpr int b_sh_stride /*128 thread for one row of B*/ = 32/*32 threads in a warp*/ * thread_n_blocks/*16*/ / 4;
                           // 每行B, 有128个thread, 相当于4个warp
-  /*******/ int b_gl_rd_delta_o /*8196 int4*/ = b_gl_stride /*2048*/ * thread_k_blocks /*4*/;
+  /*******/ int b_gl_rd_delta_o /*8192 int4*/ = b_gl_stride /*2048*/ * thread_k_blocks /*4*/;
                           // between subsequent A tiles in global memory, 比如一个slice里上下两个tile的delta
   /*******/ int b_gl_rd_delta_i /*4096 int4*/ = b_gl_stride /*2048*/ * (threads/*256*/ / b_sh_stride/*128*/);
                           //一个b tile 被切分成两个iter, 两个iter之间的delta, 其实就是 b_gl_rd_delta_o/b_sh_wr_iters(2) 
@@ -462,7 +462,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   const int4* B_ptr[b_sh_wr_iters];
   #pragma unroll
   for (int i = 0; i < b_sh_wr_iters; i++)
-    B_ptr[i] = B + b_gl_rd_delta_i * i + b_gl_rd;
+    B_ptr[i] = B + b_gl_rd_delta_i/*4096*/ * i + b_gl_rd/* by threadIdx.x*/;
 
   extern __shared__ int4 sh[];
   // Shared memory storage for global fetch pipelines. 
@@ -500,9 +500,9 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       // fetch b
       int4* sh_b_stage = sh_b + b_sh_stage * pipe;
       #pragma unroll
-      for (int i = 0; i < b_sh_wr_iters; i++) {
-        cp_async4_stream(&sh_b_stage[b_sh_wr_delta * i + b_sh_wr], B_ptr[i]);
-        B_ptr[i] += b_gl_rd_delta_o;
+      for (int i = 0; i < b_sh_wr_iters/*2*/; i++) {
+        cp_async4_stream(&sh_b_stage[b_sh_wr_delta/*256*/ * i + b_sh_wr], B_ptr[i]/* by threadIdx.x*/);
+        B_ptr[i] += b_gl_rd_delta_o/*8192*/;
       }
       // fetch s, Only fetch scales if this tile starts a new group
       if (group_blocks/*8*/ != -1 && pipe % (group_blocks/*8*/ / thread_k_blocks/*4*/) == 0) {
