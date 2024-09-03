@@ -11,7 +11,7 @@ setup(
     packages=['marlin'],
     ext_modules=[cpp_extension.CUDAExtension(
         'marlin_cuda', ['marlin/marlin_cuda.cpp', 'marlin/marlin_cuda_kernel.cu'],
-        extra_compile_args={'cxx': ['-g'], 'nvcc': ['-g', '-G']}
+        #extra_compile_args={'cxx': ['-g'], 'nvcc': ['-g', '-G']}
 
     )],
     cmdclass={'build_ext': cpp_extension.BuildExtension},

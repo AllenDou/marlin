@@ -746,10 +746,10 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   while (slice_iters/* one iter for a tile */) {
     // We unroll over both the global fetch and the register load pipeline to ensure all shared memory accesses are
     // static. Note that both pipelines have even length meaning that the next iteration will always start at index 0.
-    #pragma unroll
+    //#pragma unroll
     for (int pipe = 0; pipe < stages/*4*/;) {
-      #pragma unroll
-      for (int k = 0; k < b_sh_wr_iters/*2*/; k++) {
+      //#pragma unroll
+      for (int k = 0; k < b_sh_wr_iters/*2*/; k++) { // call 64 mma inst in total.
         fetch_to_registers(k + 1, pipe % stages/*4*/);
         // k 的range是 0和1
         if (k == b_sh_wr_iters - 2 /*k=0*/) {
