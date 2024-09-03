@@ -471,10 +471,10 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   int4* sh_s = sh_b + (stages/*4*/ * b_sh_stage/*512*/);
   // Register storage for double buffer of shared memory reads. 
   //using FragA = Vec<half2, 4>;
-  FragA frag_a[2][thread_m_blocks/*4*/];
-  I4 frag_b_quant[2];
-  FragC frag_c[thread_m_blocks/*4*/][4][2];
-  FragS frag_s[2][4];
+  /*Vec<half2, 4>*/ FragA frag_a[2][thread_m_blocks/*4*/];
+  /*Vec<int, 4>*/   I4 frag_b_quant[2];
+  /*Vec<float, 4>*/ FragC frag_c[thread_m_blocks/*4*/][4][2];
+  /*Vec<half2, 1>*/ FragS frag_s[2][4];
 
   // Zero accumulators.
   auto zero_accums = [&] () {
