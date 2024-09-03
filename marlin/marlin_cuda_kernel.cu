@@ -940,9 +940,9 @@ int marlin_cuda(
     CALL_IF(3, 16,  4, -1)
     CALL_IF(3, 16,  4,  8)
     CALL_IF(4, 16,  4, -1)
-
-    //CALL_IF(4, 16,  4,  8)
-    //CALL_IF(2, 16,  4,  8)
+    CALL_IF(4, 16,  4,  8)
+    else
+      ret = ERR_KERN_SHAPE;
 
     A_ptr += 16 * thread_m_blocks * (prob_k / 8) * par/*16*/;
     C_ptr += 16 * thread_m_blocks * (prob_n / 8) * par/*16*/;
