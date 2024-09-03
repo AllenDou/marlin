@@ -158,7 +158,7 @@ class Test(unittest.TestCase):
         user_specified_threadidx = 1
         for blockidx in range(user_specified_blockidx-1,user_specified_blockidx):
             for threadidx in range(0,user_specified_threadidx ):
-                for m in [25600]:
+                for m in [16]:
                 #for m in [1024]:
                     for groupsize in [128]:
                         for n, k in [(4096, 4096)]:

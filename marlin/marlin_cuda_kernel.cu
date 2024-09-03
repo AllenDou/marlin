@@ -931,17 +931,17 @@ int marlin_cuda(
     // For compilation speed, we only define the kernel configurations that have seemed useful (in terms of performance)
     // in our testing, however many more are, in principle, possible.
     if (false) {}
-    //CALL_IF(1,  8,  8, -1)
-    //CALL_IF(1,  8,  8,  8)
-    //CALL_IF(1, 16,  4, -1)
-    //CALL_IF(1, 16,  4,  8)
-    //CALL_IF(2, 16,  4, -1)
-    //CALL_IF(2, 16,  4,  8)
-    //CALL_IF(3, 16,  4, -1)
-    //CALL_IF(3, 16,  4,  8)
-    //CALL_IF(4, 16,  4, -1)
+    CALL_IF(1,  8,  8, -1)
+    CALL_IF(1,  8,  8,  8)
+    CALL_IF(1, 16,  4, -1)
+    CALL_IF(1, 16,  4,  8)
+    CALL_IF(2, 16,  4, -1)
+    CALL_IF(2, 16,  4,  8)
+    CALL_IF(3, 16,  4, -1)
+    CALL_IF(3, 16,  4,  8)
+    CALL_IF(4, 16,  4, -1)
 
-    CALL_IF(4, 16,  4,  8)
+    //CALL_IF(4, 16,  4,  8)
     //CALL_IF(2, 16,  4,  8)
 
     A_ptr += 16 * thread_m_blocks * (prob_k / 8) * par/*16*/;
