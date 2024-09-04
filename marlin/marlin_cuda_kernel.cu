@@ -555,7 +555,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   // Execute the actual tensor core matmul of a sub-tile. 
   auto matmul = [&] (int k) {
     // We have the m dimension as the inner loop in order to encourage overlapping dequantization and matmul operations.
-    #pragma unroll
+    //#pragma unroll
     for (int j = 0; j < 4/*4 sub tile in a warp (4 warps/row)*/; j++) {
       // I4 frag_b_quant[2]; annotate by zixiao.
       int b_quant = frag_b_quant[k % 2][j];
@@ -567,7 +567,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       FragB frag_b1 = dequant(b_quant_shift);
       if (group_blocks/*8*/ != -1)
         scale(frag_b1, frag_s[k % 2][j], 1);
-      #pragma unroll
+      //#pragma unroll
       for (int i = 0; i < thread_m_blocks/*4*/; i++) {
         mma(frag_a[k % 2][i], frag_b0, frag_c[i][j][0]);
         mma(frag_a[k % 2][i], frag_b1, frag_c[i][j][1]);
