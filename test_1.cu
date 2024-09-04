@@ -73,22 +73,26 @@ __global__ void Marlin(
   };
 
   while (slice_iters/* one iter for a tile */) {
-    //printf("--------\n");
+    printf("--------\n");
     // We unroll over both the global fetch and the register load pipeline to ensure all shared memory accesses are
     // static. Note that both pipelines have even length meaning that the next iteration will always start at index 0.
     //#pragma unroll
     for (int pipe = 0; pipe < stages/*4*/;) {
+      printf("pipe=%d\n", pipe);
       //#pragma unroll
       for (int k = 0; k < b_sh_wr_iters/*2*/; k++) { // call 64 mma inst in total.
         //fetch_to_registers(k + 1, pipe % stages/*4*/);
         // k 的range是 0和1
+        printf("fetch_to_registers k+1=%d pipe=%d\n", (k+1) % 2, pipe%stages);
         if (k == b_sh_wr_iters - 2 /*k=0*/) {
           //fetch_to_shared((pipe + stages/*4*/ - 1) % stages/*4*/, pipe, slice_iters >= stages/*4*/);
+          //printf("fetch_to_shared k=%d\n", k);
           pipe++;
           //wait_for_stage();
         }
         //!!! when k==1, no pipe++
-        matmul(k);
+        //matmul(k);
+        printf("call mma(k=%d) 32 times slice_iters=%d\n", k, slice_iters);
       }
       //printf("call 32*2 mma, slice_iters=%d pipe=%d k=0,1\n", slice_iters, pipe);
       slice_iters--;
@@ -110,7 +114,7 @@ int main() {
   //int data[] = {1, 2, 3, 4};
   //ldsm4(frag_a[0][0], data);
 
-  const int THREADS = 256;
+  const int THREADS = 1;
   const int STAGES = 4; // 4 pipeline stages fit into shared memory
   const int SHARED_MEM = 96 * 1024; // max shared memory on compute capability 8.6 (< 8.0)
   const int THREAD_M_BLOCKS = 4;
@@ -125,7 +129,7 @@ int main() {
     SHARED_MEM \
   );
   Marlin<THREADS, THREAD_M_BLOCKS, THREAD_N_BLOCKS, THREAD_K_BLOCKS, STAGES, GROUP_BLOCKS>\
-  <<<blocks, THREADS, SHARED_MEM, stream/*0*/>>>(1); 
+  <<<blocks, THREADS, SHARED_MEM, stream/*0*/>>>(64);
   cudaDeviceSynchronize();
 
   return 0;
