@@ -454,7 +454,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   for (int i = 0; i < b_sh_wr_iters/*2*/; i++) {
     #pragma unroll
     for (int j = 0; j < thread_m_blocks/*4*/; j++)
-      a_sh_rd_trans[i][j] = transform_a(a_sh_rd_delta_o * i + a_sh_rd_delta_i * j + a_sh_rd); 
+      a_sh_rd_trans[i][j] = transform_a(a_sh_rd_delta_o * i + a_sh_rd_delta_i * j + a_sh_rd/*by threadIdx.x*/); 
   }
 
   // Since B-accesses have non-constant stride they have to be computed at runtime; we break dependicies between
@@ -556,7 +556,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   auto matmul = [&] (int k) {
     // We have the m dimension as the inner loop in order to encourage overlapping dequantization and matmul operations.
     //#pragma unroll
-    for (int j = 0; j < 4/*4 sub tile in a warp (4 warps/row)*/; j++) {
+    for (int j = 0; j < 4/* */; j++) {
       // I4 frag_b_quant[2]; annotate by zixiao.
       int b_quant = frag_b_quant[k % 2][j];
       int b_quant_shift = b_quant >> 8;
@@ -573,6 +573,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
         mma(frag_a[k % 2][i], frag_b1, frag_c[i][j][1]);
       }
     }
+    //printf("call matmul blockIdx.x=%d threadIdx.x=%d\n", blockIdx.x, threadIdx.x);
   };
 
   // Since we slice across the k dimension of a tile in order to increase the number of warps while keeping the n

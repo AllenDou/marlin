@@ -42,15 +42,21 @@ template <
 __global__ void Marlin(
   int slice_iters
 ) {
+  /*Vec<half2, 4>*/ FragA frag_a[2][thread_m_blocks/*4*/];
+  /*Vec<int, 4>*/   I4 frag_b_quant[2];
+  /*Vec<float, 4>*/ FragC frag_c[thread_m_blocks/*4*/][4][2];
+  /*Vec<half2, 1>*/ FragS frag_s[2][4];
 
   //int slice_iters = 64;
   //int stages = 4;
+  frag_a[0][0].elems[0].x = threadIdx.x/3;
+  int haha = threadIdx.x;
   int b_sh_wr_iters = 2;
   //int thread_m_blocks = 4;
   
   auto matmul = [&] (int k) {
     // We have the m dimension as the inner loop in order to encourage overlapping dequantization and matmul operations.
-    #pragma unroll
+    //#pragma unroll
     for (int j = 0; j < 4/*4 sub tile in a warp (4 warps/row)*/; j++) {
       // I4 frag_b_quant[2]; annotate by zixiao.
       //int b_quant = frag_b_quant[k % 2][j];
@@ -62,11 +68,12 @@ __global__ void Marlin(
       //FragB frag_b1 = dequant(b_quant_shift);
       //if (group_blocks/*8*/ != -1)
       //  scale(frag_b1, frag_s[k % 2][j], 1);
-      #pragma unroll
+      //#pragma unroll
       for (int i = 0; i < thread_m_blocks/*4*/; i++) {
         //mma(frag_a[k % 2][i], frag_b0, frag_c[i][j][0]);
         //mma(frag_a[k % 2][i], frag_b1, frag_c[i][j][1]);
         printf("call mma \n");
+        //__syncthreads();
         printf("call mma \n");
       }
     }
@@ -91,7 +98,7 @@ __global__ void Marlin(
           //wait_for_stage();
         }
         //!!! when k==1, no pipe++
-        //matmul(k);
+        matmul(k);
         printf("call mma(k=%d) 32 times slice_iters=%d threadIdx.x=%d\n", k, slice_iters, threadIdx.x);
       }
       //printf("call 32*2 mma, slice_iters=%d pipe=%d k=0,1\n", slice_iters, pipe);
