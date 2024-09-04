@@ -16,6 +16,7 @@ DEV = torch.device('cuda:0')
 
 
 def gen_quant4(m, n, groupsize=-1):
+    #import pdb; pdb.set_trace()
     tile = 16
     maxq = 2 ** 4 - 1
     w = torch.randn((m, n), dtype=torch.half, device=DEV)

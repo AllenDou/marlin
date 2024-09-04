@@ -536,7 +536,13 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     // fetch s
     if (group_blocks/*8*/ != -1) {
       int4* sh_s_stage = sh_s + s_sh_stage * ((group_blocks / thread_k_blocks) * (pipe / (group_blocks / thread_k_blocks)));
-      reinterpret_cast<int4*>(&frag_s[k % 2])[0] = sh_s_stage[s_sh_rd]; /* by threadIdx.x*/
+      //reinterpret_cast<int4*>(&frag_s[k % 2])[0] = sh_s_stage[s_sh_rd]; /* by threadIdx.x*/
+      
+      int4 *p = reinterpret_cast<int4*>(&frag_s[k % 2]); // = sh_s_stage[s_sh_rd]; /* by threadIdx.x*/
+      p[0].x = sh_s_stage[s_sh_rd].x;
+      p[0].y = sh_s_stage[s_sh_rd].y;
+      p[0].z = sh_s_stage[s_sh_rd].z;
+      p[0].w = sh_s_stage[s_sh_rd].w;
     }
 
     // fetch a
