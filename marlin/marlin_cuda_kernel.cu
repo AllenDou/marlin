@@ -493,10 +493,11 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       for (int i = 0; i < a_sh_wr_iters/*2*/; i++) {
         cp_async4_pred(
           &sh_a_stage[a_sh_wr_trans[i]],
-          &A[a_gl_rd_delta_i/*16384*/ * i + a_gl_rd + a_gl_rd_delta_o/*8*/ * a_off],
+          &A[a_gl_rd_delta_i/*16384*/ * i + a_gl_rd/* by threadIdx.x */ + a_gl_rd_delta_o/*8*/ * a_off],
           a_sh_wr_pred[i]
         );
       }
+
       // fetch b
       int4* sh_b_stage = sh_b + b_sh_stage * pipe;
       #pragma unroll
@@ -504,11 +505,12 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
         cp_async4_stream(&sh_b_stage[b_sh_wr_delta/*256*/ * i + b_sh_wr], B_ptr[i]/* by threadIdx.x*/);
         B_ptr[i] += b_gl_rd_delta_o/*8192*/;
       }
+
       // fetch s, Only fetch scales if this tile starts a new group
       if (group_blocks/*8*/ != -1 && pipe % (group_blocks/*8*/ / thread_k_blocks/*4*/) == 0) {
         int4* sh_s_stage = sh_s + s_sh_stage * pipe;
         if (s_sh_wr_pred)
-          cp_async4_stream(&sh_s_stage[s_sh_wr], &s[s_gl_rd]);
+          cp_async4_stream(&sh_s_stage[s_sh_wr], &s[s_gl_rd]); /* by threadIdx.x*/
         s_gl_rd += s_gl_rd_delta;
       }
     }
@@ -534,7 +536,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     // fetch s
     if (group_blocks/*8*/ != -1) {
       int4* sh_s_stage = sh_s + s_sh_stage * ((group_blocks / thread_k_blocks) * (pipe / (group_blocks / thread_k_blocks)));
-      reinterpret_cast<int4*>(&frag_s[k % 2])[0] = sh_s_stage[s_sh_rd];
+      reinterpret_cast<int4*>(&frag_s[k % 2])[0] = sh_s_stage[s_sh_rd]; /* by threadIdx.x*/
     }
 
     // fetch a
@@ -750,10 +752,11 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     for (int pipe = 0; pipe < stages/*4*/;) {
       //#pragma unroll
       for (int k = 0; k < b_sh_wr_iters/*2*/; k++) { // call 64 mma inst in total.
-        fetch_to_registers(k + 1, pipe % stages/*4*/);
+        fetch_to_registers(k + 1, pipe % stages/*4*/); // by threadIdx.x
         // k 的range是 0和1
         if (k == b_sh_wr_iters - 2 /*k=0*/) {
           fetch_to_shared((pipe + stages/*4*/ - 1) % stages/*4*/, pipe, slice_iters >= stages/*4*/);
+            // by threadIdx.x
           pipe++;
           wait_for_stage();
         }
