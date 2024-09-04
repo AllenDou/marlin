@@ -611,7 +611,12 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
                 for (int k = 0; k < 4; k++)
                   reinterpret_cast<FragC*>(frag_c)[4 * 2 * m_block + j][k] += c_rd[k] + c_wr[k];
               }
-              sh[red_sh_wr] = reinterpret_cast<int4*>(&frag_c)[4 * 2 * m_block + j];
+              //sh[red_sh_wr] = reinterpret_cast<int4*>(&frag_c)[4 * 2 * m_block + j];
+              float *p = reinterpret_cast<float*>(&frag_c) + 4*(4 * 2 * m_block + j);
+              sh[red_sh_wr].x = *reinterpret_cast<int*>(p);
+              sh[red_sh_wr].y = *reinterpret_cast<int*>(p+1);
+              sh[red_sh_wr].z = *reinterpret_cast<int*>(p+2);
+              sh[red_sh_wr].w = *reinterpret_cast<int*>(p+3);
             }
           }
           __syncthreads();
