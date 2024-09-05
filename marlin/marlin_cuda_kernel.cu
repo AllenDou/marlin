@@ -350,7 +350,7 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   // !!! notice
   // real B shape is [4096, 4096]fp16, offline processed to 
   //      [4096/16, 4096*16]fp16 = [256, 65536]fp16 = [256,8192]int32 = [256,2048]int4(4个int)
-  //      这里面的 256*65535 = 256*256*256 第二个256 就是一个b subtile的16*16经过offline的permute处理成连续的256个数
+  //      这里面的 256*65535 = 256*256*256 第三个256 就是一个b subtile的16*16经过offline的permute处理成连续的256个数
   //
   /*******/ int b_gl_stride /*2048 int4*/ = 16/*reshaped, [k/16, n*16]*/ * prob_n/*4096*/ / 32; // same with above
                           // B reshape后, N维度数量/32 = 多少个int4
