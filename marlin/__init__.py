@@ -126,13 +126,14 @@ class Layer(nn.Module):
         else:
             s = s.reshape((-1, len(_scale_perm_single)))[:, _scale_perm_single]
         s = s.reshape((-1, self.n)).contiguous()
-        import pdb; pdb.set_trace()
+        #import pdb; pdb.set_trace()
         w = w.reshape((self.k // tile, tile, self.n // tile, tile))
         w = w.permute((0, 2, 1, 3))
         w = w.reshape((self.k // tile, self.n * tile))
         import pdb; pdb.set_trace()
         res = w
         res = res.reshape((-1, _perm.numel()))[:, _perm].reshape(res.shape)
+        import pdb; pdb.set_trace()
         qq = np.zeros((res.shape[0], res.shape[1] // 8), dtype=np.uint32)
         res = res.cpu().numpy().astype(np.uint32)
         for i in range(8):

@@ -567,6 +567,8 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     int4* sh_b_stage = sh_b + b_sh_stage * pipe;
     frag_b_quant[k % 2] = *reinterpret_cast<I4*>( \
         &sh_b_stage[b_sh_rd_delta/*256*/ * (k % b_sh_wr_iters/*2*/) + b_sh_rd/*==threadIdx.x*/] \
+        // 256个线程, 每个线程都会cp自己的 16B数据, 这16B数据分成4份, 每份4B, 也就是int32, 一个int32 会通过dequant
+        // 出来 一个a full B-fragment of 4 fp16 values.
       );
   };
 
