@@ -459,8 +459,12 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   #pragma unroll
   for (int i = 0; i < b_sh_wr_iters/*2*/; i++) {
     #pragma unroll
-    for (int j = 0; j < thread_m_blocks/*4*/; j++)
-      a_sh_rd_trans[i][j] = transform_a(a_sh_rd_delta_o * i + a_sh_rd_delta_i * j + a_sh_rd/*by threadIdx.x*/); 
+    for (int j = 0; j < thread_m_blocks/*4*/; j++){
+      //a_sh_rd_trans[i][j] = transform_a(a_sh_rd_delta_o * i + a_sh_rd_delta_i * j + a_sh_rd/*by threadIdx.x*/); 
+      int input = a_sh_rd_delta_o * i + a_sh_rd_delta_i * j + a_sh_rd;
+      int output = transform_a(input);
+      a_sh_rd_trans[i][j] = output;
+    }
   }
 
   // Since B-accesses have non-constant stride they have to be computed at runtime; we break dependicies between
