@@ -356,6 +356,7 @@ k_tiles=%d n_tiles=%d parallel=%d", \
                           // B reshape后, N维度数量/32 = 多少个int4
   constexpr int b_sh_stride /*128 thread for one row of B*/ = 32/*32 threads in a warp*/ * thread_n_blocks/*16*/ / 4;
                           // 每行B, 有128个thread, 相当于4个warp
+                          // 另一种解释是 一个btile 256个数, 一行就有256*16 个数, 转成int4, 就是 256*16/32=128个int4
   /*******/ int b_gl_rd_delta_o /*8192 int4*/ = b_gl_stride /*2048*/ * thread_k_blocks /*4*/;
                           // between subsequent A tiles in global memory, 比如一个slice里上下两个tile的delta
   /*******/ int b_gl_rd_delta_i /*4096 int4*/ = b_gl_stride /*2048*/ * (threads/*256*/ / b_sh_stride/*128*/);
