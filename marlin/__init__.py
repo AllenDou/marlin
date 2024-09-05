@@ -107,7 +107,7 @@ class Layer(nn.Module):
         if linear.weight.dtype != torch.half:
             raise ValueError('Only `torch.half` weights are supported.')
         tile = 16
-        maxq = 2 ** 4 - 1
+        maxq = 2 ** 4 - 1 # = 15
         s = scales.t()
         w = linear.weight.data.t()
         if self.groupsize != self.k:
@@ -116,7 +116,7 @@ class Layer(nn.Module):
             w = w.reshape((self.groupsize, -1))
             s = s.reshape((1, -1))
         w = torch.round(w / s).int()
-        w += (maxq + 1) // 2
+        w += (maxq + 1) // 2 # make sign number to unsighned 0-15, 4bits
         w = torch.clamp(w, 0, maxq)
         if self.groupsize != self.k:
             w = w.reshape((self.groupsize, -1, self.n))
@@ -126,17 +126,19 @@ class Layer(nn.Module):
         else:
             s = s.reshape((-1, len(_scale_perm_single)))[:, _scale_perm_single]
         s = s.reshape((-1, self.n)).contiguous()
+        import pdb; pdb.set_trace()
         w = w.reshape((self.k // tile, tile, self.n // tile, tile))
         w = w.permute((0, 2, 1, 3))
         w = w.reshape((self.k // tile, self.n * tile))
+        import pdb; pdb.set_trace()
         res = w
         res = res.reshape((-1, _perm.numel()))[:, _perm].reshape(res.shape)
-        q = np.zeros((res.shape[0], res.shape[1] // 8), dtype=np.uint32)
+        qq = np.zeros((res.shape[0], res.shape[1] // 8), dtype=np.uint32)
         res = res.cpu().numpy().astype(np.uint32)
         for i in range(8):
-            q |= res[:, i::8] << 4 * i
-        q = torch.from_numpy(q.astype(np.int32)).to(w.device)
-        self.B[:, :] = q.to(self.B.device)
+            qq |= res[:, i::8] << 4 * i
+        qq = torch.from_numpy(qq.astype(np.int32)).to(w.device)
+        self.B[:, :] = qq.to(self.B.device)
         self.s[:, :] = s.to(self.s.device)
 
 

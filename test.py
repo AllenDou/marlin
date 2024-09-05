@@ -16,7 +16,6 @@ DEV = torch.device('cuda:0')
 
 
 def gen_quant4(m, _n, groupsize=-1):
-    import pdb; pdb.set_trace()
     tile = 16
     maxq = 2 ** 4 - 1
     w = torch.randn((m, _n), dtype=torch.half, device=DEV)
@@ -30,6 +29,8 @@ def gen_quant4(m, _n, groupsize=-1):
     w += (maxq + 1) // 2
     w = torch.clamp(w, 0, maxq)
     ref = (w - (maxq + 1) // 2).half() * s
+    # from now on , w is needless.
+    w.fill_(0)
     if groupsize != -1:
         def reshape(w):
             w = w.reshape((groupsize, -1, _n))
@@ -51,9 +52,9 @@ def gen_quant4(m, _n, groupsize=-1):
     layer.B = torch.empty((m // 16, _n * 16 // 8), dtype=torch.int, device=DEV)
     layer.s = torch.empty((m // groupsize, _n), dtype=torch.half, device=DEV)
     layer.pack(linear, s.t())
-    q = layer.B
+    quant = layer.B
     s = layer.s
-    return ref, q, s
+    return ref, quant, s
 
 class Test(unittest.TestCase):
 
