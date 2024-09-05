@@ -558,6 +558,11 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       );
   };
 
+  ///*Vec<half2, 4>*/ FragA frag_a[2][thread_m_blocks/*4*/];
+  ///*Vec<int, 4>*/   I4 frag_b_quant[2];
+  ///*Vec<float, 4>*/ FragC frag_c[thread_m_blocks/*4*/][4][2];
+  ///*Vec<half2, 1>*/ FragS frag_s[2][4];
+
   // Execute the actual tensor core matmul of a sub-tile. 
   auto matmul = [&] (int k) {
     // We have the m dimension as the inner loop in order to encourage overlapping dequantization and matmul operations.

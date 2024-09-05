@@ -16,6 +16,7 @@ s_sh_stride = 32
 
 for threadIdx_x in range(256):
     a_gl_rd = a_gl_stride * int(threadIdx_x / a_gl_rd_delta_o) + (threadIdx_x % a_gl_rd_delta_o)
+    a_gl_rd += a_gl_rd_delta_o * slice_row
     a_sh_wr = a_sh_stride * int(threadIdx_x / a_gl_rd_delta_o) + (threadIdx_x % a_gl_rd_delta_o)
     a_sh_rd = a_sh_stride * ((threadIdx_x % 32) % 16) + int((threadIdx_x % 32) / 16)
     a_sh_rd += 2 * int(int(threadIdx_x / 32) / int(thread_n_blocks / 4))
