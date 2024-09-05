@@ -15,13 +15,13 @@ torch.random.manual_seed(seed)
 DEV = torch.device('cuda:0')
 
 
-def gen_quant4(m, n, groupsize=-1):
-    #import pdb; pdb.set_trace()
+def gen_quant4(m, _n, groupsize=-1):
+    import pdb; pdb.set_trace()
     tile = 16
     maxq = 2 ** 4 - 1
-    w = torch.randn((m, n), dtype=torch.half, device=DEV)
+    w = torch.randn((m, _n), dtype=torch.half, device=DEV)
     if groupsize != -1: # 128
-        w = w.reshape((-1, groupsize, n))
+        w = w.reshape((-1, groupsize, _n))
         w = w.permute(1, 0, 2)
         w = w.reshape((groupsize, -1))
     s = torch.max(torch.abs(w), 0, keepdim=True)[0]
@@ -32,24 +32,24 @@ def gen_quant4(m, n, groupsize=-1):
     ref = (w - (maxq + 1) // 2).half() * s
     if groupsize != -1:
         def reshape(w):
-            w = w.reshape((groupsize, -1, n))
+            w = w.reshape((groupsize, -1, _n))
             w = w.permute(1, 0, 2)
-            w = w.reshape((m, n)).contiguous()
+            w = w.reshape((m, _n)).contiguous()
             return w
         ref = reshape(ref)
         w = reshape(w)
-    s = s.reshape((-1, n)).contiguous()
-    linear = nn.Linear(m, n)
+    s = s.reshape((-1, _n)).contiguous()
+    linear = nn.Linear(m, _n)
     linear.weight.data = ref.t()
     # Workaround to test some special cases that are forbidden by the API
     layer = marlin.Layer(256, 256, groupsize=groupsize)
     if groupsize == -1:
         groupsize = m
     layer.k = m
-    layer.n = n
+    layer.n = _n
     layer.groupsize = groupsize
-    layer.B = torch.empty((m // 16, n * 16 // 8), dtype=torch.int, device=DEV)
-    layer.s = torch.empty((m // groupsize, n), dtype=torch.half, device=DEV)
+    layer.B = torch.empty((m // 16, _n * 16 // 8), dtype=torch.int, device=DEV)
+    layer.s = torch.empty((m // groupsize, _n), dtype=torch.half, device=DEV)
     layer.pack(linear, s.t())
     q = layer.B
     s = layer.s
