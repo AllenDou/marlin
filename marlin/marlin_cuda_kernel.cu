@@ -348,7 +348,8 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   /* B related. */
   // 1int4 = 8fp16, 1*fp16 == 4*int4(4bit), so 1int4 = 32int(4bit)
   // !!! notice
-  // real B shape is [4096, 4096]fp16, offline processed to [4096/16, 4096*16]fp16 = [256, 65536]fp16 = [256,8192]int32 = [256,2048]int4(4个int)
+  // real B shape is [4096, 4096]fp16, offline processed to 
+  //      [4096/16, 4096*16]fp16 = [256, 65536]fp16 = [256,8192]int32 = [256,2048]int4(4个int)
   //
   /*******/ int b_gl_stride /*2048 int4*/ = 16/*reshaped, [k/16, n*16]*/ * prob_n/*4096*/ / 32; // same with above
                           // B reshape后, N维度数量/32 = 多少个int4
@@ -438,16 +439,21 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   // the 16-byte `int4` blocks of 8 consecutive threads involve the same shared memory banks. Further, it seems (based
   // on NSight-Compute) that each warp must also write a consecutive memory segment?
   auto transform_a = [&] (int i) {
-    int row = i / a_gl_rd_delta_o;
-    return a_gl_rd_delta_o * row + (i % a_gl_rd_delta_o) ^ row;
+    int row = i / a_gl_rd_delta_o /*8*/;
+    return a_gl_rd_delta_o/*8*/ * row + (i % a_gl_rd_delta_o/*8*/) ^ row; // XOR 按位异或, 如5^3=6 
   };
 
   // Since the computation of this remapping is non-trivial and, due to our main loop unrolls, all shared memory 
   // accesses are static, we simply precompute both transformed reads and writes.
   int a_sh_wr_trans[a_sh_wr_iters];
   #pragma unroll
-  for (int i = 0; i < a_sh_wr_iters/*2*/; i++)
-    a_sh_wr_trans[i] = transform_a(a_sh_wr_delta * i + a_sh_wr);
+  for (int i = 0; i < a_sh_wr_iters/*2*/; i++) {
+    //a_sh_wr_trans[i] = transform_a(a_sh_wr_delta * i + a_sh_wr);
+    int input = a_sh_wr_delta/*256*/ * i + a_sh_wr/*by threadIdx.x*/;
+    int output = transform_a(input);
+    a_sh_wr_trans[i] = output;
+  }
+
 
   int a_sh_rd_trans[b_sh_wr_iters][thread_m_blocks];
   #pragma unroll
