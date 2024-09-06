@@ -130,17 +130,18 @@ class Layer(nn.Module):
         w = w.reshape((self.k // tile, tile, self.n // tile, tile))
         w = w.permute((0, 2, 1, 3))
         w = w.reshape((self.k // tile, self.n * tile))
-        import pdb; pdb.set_trace()
         res = w
         res = res.reshape((-1, _perm.numel()))[:, _perm].reshape(res.shape)
-        import pdb; pdb.set_trace()
         qq = np.zeros((res.shape[0], res.shape[1] // 8), dtype=np.uint32)
         res = res.cpu().numpy().astype(np.uint32)
+        import pdb; pdb.set_trace()
+        #  p res[0][0:8] = [ 5,  5,  5,  1, 10,  2,  8,  5]
         for i in range(8):
             qq |= res[:, i::8] << 4 * i
+        import pdb; pdb.set_trace()
         qq = torch.from_numpy(qq.astype(np.int32)).to(w.device)
         self.B[:, :] = qq.to(self.B.device)
-        self.s[:, :] = s.to(self.s.device)
+        self.s[:, :] = s.to(self.s.device) #0.3533
 
 
 def replace_linear(module, name_filter=lambda n: True, groupsize=-1, name=''):
