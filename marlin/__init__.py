@@ -67,6 +67,29 @@ def _get_perms():
 
 _perm, _scale_perm, _scale_perm_single = _get_perms()
 
+#_perm如下, 意思是, 一个线程要获取 4个数(for m16n8k16), 8个数(for m16n16k16), 这个4个数
+# 需要分别对应tensorcore的一个线程的4个点, 见 https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#warp-level-matrix-fragment-mma-16816-float
+# so, 如果要处理 m16n16k16, 那么一个线程就需要8个点, 如下的_perm数据, 就是 这8个点在真实Bweight的上下标
+# 256 512 768的意思就是, 这个线程, 在连续4个B sub-tile上的需要的tensor core的8个点的下标, 这个4 也和cuda代码
+# matmul的 for (int j = 0; j < 4/* */; j++) 对应. 这样 32个线程(1个warp), 就可以处理4个b subtile, 8个warp
+# 就可以把Btile的一个iter处理完.
+#tid=0
+#[[   0,  128,    8,  136,   16,  144,   24,  152],
+# [ 256,  384,  264,  392,  272,  400,  280,  408],
+# [ 512,  640,  520,  648,  528,  656,  536,  664],
+# [ 768,  896,  776,  904,  784,  912,  792,  920],
+#tid=1
+# [  32,  160,   40,  168,   48,  176,   56,  184],
+# [ 288,  416,  296,  424,  304,  432,  312,  440],
+# [ 544,  672,  552,  680,  560,  688,  568,  696],
+# [ 800,  928,  808,  936,  816,  944,  824,  952],
+# ...
+#tid=31
+#  [ 103,  231,  111,  239,  119,  247,  127,  255],
+#  [ 359,  487,  367,  495,  375,  503,  383,  511],
+#  [ 615,  743,  623,  751,  631,  759,  639,  767],
+#  [ 871,  999,  879, 1007,  887, 1015,  895, 1023]])
+
 
 class Layer(nn.Module):
     """PyTorch compatible Marlin layer; 4-bit (symmetric grouped) linear layer without bias."""
@@ -132,9 +155,9 @@ class Layer(nn.Module):
         w = w.reshape((self.k // tile, self.n * tile))
         res = w
         res = res.reshape((-1, _perm.numel()))[:, _perm].reshape(res.shape)
+        import pdb; pdb.set_trace()
         qq = np.zeros((res.shape[0], res.shape[1] // 8), dtype=np.uint32)
         res = res.cpu().numpy().astype(np.uint32)
-        import pdb; pdb.set_trace()
         #  p res[0][0:8] = [ 5,  5,  5,  1, 10,  2,  8,  5] 8个数 每个占用4bit, 合并起来一个int32 1479152981
         for i in range(8):
             qq |= res[:, i::8] << 4 * i
