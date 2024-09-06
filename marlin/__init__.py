@@ -52,7 +52,7 @@ def _get_perms():
                 perm1.append(16 * row + col + 8 * block)
         for j in range(4):
             perm.extend([p + 256 * j for p in perm1])
-
+    import pdb; pdb.set_trace()
     perm = np.array(perm)
     interleave = np.array([0, 2, 4, 6, 1, 3, 5, 7])
     perm = perm.reshape((-1, 8))[:, interleave].ravel()
@@ -135,7 +135,7 @@ class Layer(nn.Module):
         qq = np.zeros((res.shape[0], res.shape[1] // 8), dtype=np.uint32)
         res = res.cpu().numpy().astype(np.uint32)
         import pdb; pdb.set_trace()
-        #  p res[0][0:8] = [ 5,  5,  5,  1, 10,  2,  8,  5]
+        #  p res[0][0:8] = [ 5,  5,  5,  1, 10,  2,  8,  5] 8个数 每个占用4bit, 合并起来一个int32 1479152981
         for i in range(8):
             qq |= res[:, i::8] << 4 * i
         import pdb; pdb.set_trace()

@@ -583,7 +583,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     //#pragma unroll
     for (int j = 0; j < 4/* */; j++) {
       // I4 frag_b_quant[2]; annotate by zixiao.
-      int b_quant = frag_b_quant[k % 2][j];
+      int b_quant = frag_b_quant[k % 2][j]; // 1479152981 这个int32 包含8个 4bit数
       int b_quant_shift = b_quant >> 8;
       FragB frag_b0 = dequant(b_quant);
       // If there are no groups, we can just scale the final output once and can avoid doing so for each weight.
