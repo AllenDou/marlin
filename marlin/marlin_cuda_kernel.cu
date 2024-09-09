@@ -503,7 +503,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       int4* sh_a_stage = sh_a + a_sh_stage/*512*/ * pipe;
       #pragma unroll
       for (int i = 0; i < a_sh_wr_iters/*2*/; i++) {
-        cp_async4_pred(
+        cp_async4_pred( // copy 16 bytes.
           &sh_a_stage[a_sh_wr_trans[i]],
           &A[a_gl_rd_delta_i/*16384*/ * i + a_gl_rd/* by threadIdx.x */ + a_gl_rd_delta_o/*8*/ * a_off],
           a_sh_wr_pred[i]
@@ -560,8 +560,10 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     // fetch a
     int4* sh_a_stage = sh_a + a_sh_stage/*512*/ * pipe;
     #pragma unroll
-    for (int i = 0; i < thread_m_blocks; i++)
+    for (int i = 0; i < thread_m_blocks; i++) {
+      //256个线程, 共计获取 256*8(一个线程获取8个half) = 2048/(16*16)=8 这个8 就是 A subtile的一半, 4*4blocks的一半就是4*2个block
       ldsm4(frag_a[k % 2][i], &sh_a_stage[a_sh_rd_trans[k % b_sh_wr_iters][i]]);
+    }
 
     // fetch b
     int4* sh_b_stage = sh_b + b_sh_stage * pipe;
