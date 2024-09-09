@@ -1,3 +1,5 @@
+import matplotlib.pyplot as plt
+import numpy as np
 
 a_gl_stride = 512
 a_sh_stride = 8
@@ -23,17 +25,21 @@ def transform_a(i):
     row = int(i / a_gl_rd_delta_o)
     return a_gl_rd_delta_o * row + (i % a_gl_rd_delta_o) ^ row
 
+trans0 = []
 for threadIdx_x in range(256):
     a_gl_rd = a_gl_stride * int(threadIdx_x / a_gl_rd_delta_o) + (threadIdx_x % a_gl_rd_delta_o)
     a_gl_rd += a_gl_rd_delta_o * slice_row
     a_sh_wr = a_sh_stride * int(threadIdx_x / a_gl_rd_delta_o) + (threadIdx_x % a_gl_rd_delta_o)
     a_sh_wr_trans0 = transform_a(a_sh_wr_delta * 0 + a_sh_wr)
     a_sh_wr_trans1 = transform_a(a_sh_wr_delta * 1 + a_sh_wr)
+    trans0.append(a_sh_wr_trans0)
+    #trans0.append(a_sh_wr_trans1)
 
     a_sh_rd = a_sh_stride * ((threadIdx_x % 32) % 16) + int((threadIdx_x % 32) / 16)
     a_sh_rd += 2 * int(int(threadIdx_x / 32) / int(thread_n_blocks / 4))
     a_sh_rd_trans0 = transform_a(a_sh_rd_delta_o*0 + a_sh_rd)
     a_sh_rd_trans1 = transform_a(a_sh_rd_delta_o*1 + a_sh_rd)
+    #trans0.append(a_sh_rd_trans0)
 
     b_gl_rd = b_gl_stride * int(threadIdx_x / b_sh_stride) + (threadIdx_x % b_sh_stride)
     b_gl_rd += b_sh_stride * slice_col
@@ -47,3 +53,13 @@ for threadIdx_x in range(256):
     #s_sh_rd = 8 * (int(threadIdx_x / 32) % int(thread_n_blocks / 4)) + int((threadIdx_x % 32) % 4)
     print(f"{threadIdx_x:3}| {a_gl_rd=:5} {a_sh_wr=:3} a_sh_wr_trans={a_sh_wr_trans0:3}/{a_sh_wr_trans1:3} {a_sh_rd=:3} \
 a_sh_rd_trans={a_sh_rd_trans0:3}/{a_sh_rd_trans1:3} |{b_gl_rd=:4} {b_sh_wr=:3} {b_sh_rd=:3} |{s_gl_rd=:3} {s_sh_wr=:3} {s_sh_rd=:2}")
+
+print(trans0)
+plt.scatter(range(len(trans0)), trans0)
+plt.title('散点图')
+plt.xlabel('索引')
+plt.ylabel('值')
+plt.grid(True)  # 显示网格
+#plt.grid(axis='x')  # 只显示x轴网格
+plt.show()
+plt.savefig('a_sh_rd_trans.png', dpi=300)
