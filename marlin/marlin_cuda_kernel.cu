@@ -788,8 +788,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
         fetch_to_registers(k + 1, pipe % stages/*4*/); // by threadIdx.x
         // k 的range是 0和1
         if (k == b_sh_wr_iters - 2 /*k=0*/) {
-          fetch_to_shared((pipe + stages/*4*/ - 1) % stages/*4*/, pipe, slice_iters >= stages/*4*/);
-            // by threadIdx.x
+          fetch_to_shared((pipe + stages/*4*/ - 1) % stages/*4*/, pipe, slice_iters >= stages/*4*/);//by threadIdx.x
           pipe++;
           wait_for_stage();
         }
