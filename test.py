@@ -23,6 +23,7 @@ def gen_quant4(m, _n, groupsize=-1):
         w = w.reshape((-1, groupsize, _n))
         w = w.permute(1, 0, 2)
         w = w.reshape((groupsize, -1))
+    import pdb; pdb.set_trace()
     s = torch.max(torch.abs(w), 0, keepdim=True)[0]
     s *= 2 / maxq
     w = torch.round(w / s).int()

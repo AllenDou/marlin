@@ -521,7 +521,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       // fetch s, Only fetch scales if this tile starts a new group
       if (group_blocks/*8*/ != -1 && pipe % (group_blocks/*8*/ / thread_k_blocks/*4*/) == 0) {
         int4* sh_s_stage = sh_s + s_sh_stage * pipe;
-        if (s_sh_wr_pred)
+        if (s_sh_wr_pred) // copy 16 bytes
           cp_async4_stream(&sh_s_stage[s_sh_wr], &s[s_gl_rd]); /* by threadIdx.x*/
         s_gl_rd += s_gl_rd_delta;
       }
@@ -784,7 +784,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     //#pragma unroll
     for (int pipe = 0; pipe < stages/*4*/;) {
       //#pragma unroll
-      for (int k = 0; k < b_sh_wr_iters/*2*/; k++) { // call 64 mma inst in total.
+      for (int k = 0; k < b_sh_wr_iters/*2*/; k++) { // one thread call 64 mma inst in total.
         fetch_to_registers(k + 1, pipe % stages/*4*/); // by threadIdx.x
         // k 的range是 0和1
         if (k == b_sh_wr_iters - 2 /*k=0*/) {
