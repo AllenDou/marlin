@@ -277,7 +277,7 @@ k_tiles=%d n_tiles=%d parallel=%d", \
 
   // Compute all information about the current slice which is required for synchronization.
   auto init_slice = [&] () {
-    slice_iters = iters * (blockIdx.x + 1) - (k_tiles/*64*/ * slice_col_par + slice_row);
+    slice_iters = iters/*180*/ * (blockIdx.x + 1) - (k_tiles/*64*/ * slice_col_par + slice_row);
     if (slice_iters < 0 || slice_col_par >= n_tiles/*16*/ * parallel)
       slice_iters = 0;
     if (slice_iters == 0)
@@ -666,12 +666,12 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     // To do this, we write out results in FP16 (but still reduce with FP32 compute).
     constexpr int active_threads /*128*/ = 32 * thread_n_blocks/*16*/ / 4;
     if (threadIdx.x < active_threads/*128*/) {
-      int c_gl_stride/*512*/ = prob_n/*4096*/ / 8;
-      int c_gl_wr_delta_o/*4096*/ = 8 * c_gl_stride;
+      int c_gl_stride/*512 int4*/ = prob_n/*4096*/ / 8;
+      int c_gl_wr_delta_o/*4096 int4*/ = 8 * c_gl_stride;
       int c_gl_wr_delta_i/*16*/ = 4 * (active_threads/*128*/ / 32);
       int c_gl_wr = c_gl_stride/*512*/ * ((threadIdx.x % 32) / 4) + 4 * (threadIdx.x / 32) + threadIdx.x % 4;
       c_gl_wr += (2 * thread_n_blocks/*16*/) * slice_col;
-      constexpr int c_sh_wr_delta = active_threads/*128*/;
+      constexpr int c_sh_wr_delta /*128*/ = active_threads/*128*/;
       int c_sh_wr = threadIdx.x;
 
       int row = (threadIdx.x % 32) / 4;

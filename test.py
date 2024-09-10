@@ -23,7 +23,7 @@ def gen_quant4(m, _n, groupsize=-1):
         w = w.reshape((-1, groupsize, _n))
         w = w.permute(1, 0, 2)
         w = w.reshape((groupsize, -1))
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
     s = torch.max(torch.abs(w), 0, keepdim=True)[0]
     s *= 2 / maxq
     w = torch.round(w / s).int()
@@ -67,7 +67,7 @@ class Test(unittest.TestCase):
         # B     [256, 8192] int32, 4096*4096 = 256*8192*8
         C = torch.zeros((m, n), dtype=torch.half, device=DEV)
         C_ref = torch.matmul(A, B_ref)
-        workspace = torch.zeros(n // 128 * 16, device=DEV)
+        workspace = torch.zeros(n // 128 * 16, device=DEV) # dtype = torch.float32
         #import pdb; pdb.set_trace()
         marlin.mul(A, B, C, s, workspace, thread_k, thread_n, -1, 16, print_eable, user_specified_blockidx, user_specified_threadidx)
         torch.cuda.synchronize()
