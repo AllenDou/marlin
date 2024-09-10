@@ -609,7 +609,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   auto thread_block_reduce = [&] () {
     constexpr int red_off/*1*/ = threads/*256*/ / b_sh_stride/*128*/ / 2;
     if (red_off >= 1) {
-      int red_idx /* 0/1*/ = threadIdx.x / b_sh_stride/*128*/;
+      int red_idx /* 0/1 */ = threadIdx.x / b_sh_stride/*128*/;
       constexpr int red_sh_stride/*1024*/ = b_sh_stride/*128*/ * 4 * 2;
       constexpr int red_sh_delta/*128*/ = b_sh_stride/*128*/; 
       int red_sh_rd = red_sh_stride/*1024*/ * (threadIdx.x / b_sh_stride/*128*/) + (threadIdx.x % b_sh_stride/*128*/);
@@ -625,7 +625,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
             #pragma unroll
             for (int j = 0; j < 4 * 2; j++) {
               int red_sh_wr = red_sh_delta * j + (red_sh_rd - red_sh_stride * i);
-              if (i < red_off/*1*/) {
+              if (i < red_off/*1*/) { /* this if statement is not runnning because i(1) < red_off(1) is false. */
                 float* c_rd = reinterpret_cast<float*>(&sh[red_sh_delta * j + red_sh_rd]);
                 float* c_wr = reinterpret_cast<float*>(&sh[red_sh_wr]);
                 #pragma unroll
