@@ -617,21 +617,21 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       // Parallel logarithmic shared memory reduction. We make sure to avoid any unnecessary read or write iterations,
       // e.g., for two warps we write only once by warp 1 and read only once by warp 0. 
 
-      #pragma unroll
+      //#pragma unroll
       for (int m_block = 0; m_block < thread_m_blocks/*4*/; m_block++) {
-        #pragma unroll
+        //#pragma unroll
         for (int i = red_off/*1*/; i > 0; i /= 2) {
-          if (i <= red_idx && red_idx < 2 * i) {
-            #pragma unroll
+          if (i <= red_idx && red_idx < 2 * i) { // for threadIdx.x=128-255
+            //#pragma unroll
             for (int j = 0; j < 4 * 2; j++) {
-              int red_sh_wr = red_sh_delta * j + (red_sh_rd - red_sh_stride * i);
-              if (i < red_off/*1*/) { /* this if statement is not runnning because i(1) < red_off(1) is false. */
-                float* c_rd = reinterpret_cast<float*>(&sh[red_sh_delta * j + red_sh_rd]);
-                float* c_wr = reinterpret_cast<float*>(&sh[red_sh_wr]);
-                #pragma unroll
-                for (int k = 0; k < 4; k++)
-                  reinterpret_cast<FragC*>(frag_c)[4 * 2 * m_block + j][k] += c_rd[k] + c_wr[k];
-              }
+              int red_sh_wr = red_sh_delta * j + (red_sh_rd/*by threadIdx.x*/ - red_sh_stride * i);
+              //if (i < red_off/*1*/) { /* this if statement is not runnning because i(1) < red_off(1) is false. */
+              //  float* c_rd = reinterpret_cast<float*>(&sh[red_sh_delta * j + red_sh_rd]);
+              //  float* c_wr = reinterpret_cast<float*>(&sh[red_sh_wr]);
+              //  //#pragma unroll
+              //  for (int k = 0; k < 4; k++)
+              //    reinterpret_cast<FragC*>(frag_c)[4 * 2 * m_block + j][k] += c_rd[k] + c_wr[k];
+              //}
               //sh[red_sh_wr] = reinterpret_cast<int4*>(&frag_c)[4 * 2 * m_block + j];
               float *p = reinterpret_cast<float*>(&frag_c) + 4*(4 * 2 * m_block + j);
               sh[red_sh_wr].x = *reinterpret_cast<int*>(p);
@@ -642,11 +642,11 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
           }
           __syncthreads();
         }
-        if (red_idx == 0) {
-          #pragma unroll
+        if (red_idx == 0) { // for threadIdx.x=0-127
+          //#pragma unroll
           for (int i = 0; i < 4 * 2; i++) {
-            float* c_rd = reinterpret_cast<float*>(&sh[red_sh_delta * i + red_sh_rd]);
-            #pragma unroll
+            float* c_rd = reinterpret_cast<float*>(&sh[red_sh_delta/*128*/ * i + red_sh_rd/* by threadIdx.x*/]);
+            //#pragma unroll
             for (int j = 0; j < 4; j++)
               reinterpret_cast<FragC*>(frag_c)[4 * 2 * m_block + i][j] += c_rd[j];
           }
