@@ -356,7 +356,7 @@ k_tiles=%d n_tiles=%d parallel=%d", \
                           // B reshape后, N维度数量/32 = 多少个int4
   constexpr int b_sh_stride /*128 thread for one row of B*/ = 32/*32 threads in a warp*/ * thread_n_blocks/*16*/ / 4;
                           // 每行B, 有128个thread, 相当于4个warp
-                          // 另一种解释是 一个btile 256个数, 一行就有256*16 个数, 转成int4, 就是 256*16/32=128个int4
+                          // 另一种解释是 一个btile 256个数(一个subtile是16*16展开成一行), 一行就有256*16 个数, 转成int4, 就是 256*16/32=128个int4
   /*******/ int b_gl_rd_delta_o /*8192 int4*/ = b_gl_stride /*2048*/ * thread_k_blocks /*4*/;
                           // between subsequent A tiles in global memory, 比如一个slice里上下两个tile的delta
   /*******/ int b_gl_rd_delta_i /*4096 int4*/ = b_gl_stride /*2048*/ * (threads/*256*/ / b_sh_stride/*128*/);
@@ -609,7 +609,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   auto thread_block_reduce = [&] () {
     constexpr int red_off/*1*/ = threads/*256*/ / b_sh_stride/*128*/ / 2;
     if (red_off >= 1) {
-      int red_idx = threadIdx.x / b_sh_stride/*128*/;
+      int red_idx /* 0/1*/ = threadIdx.x / b_sh_stride/*128*/;
       constexpr int red_sh_stride/*1024*/ = b_sh_stride/*128*/ * 4 * 2;
       constexpr int red_sh_delta/*128*/ = b_sh_stride/*128*/; 
       int red_sh_rd = red_sh_stride/*1024*/ * (threadIdx.x / b_sh_stride/*128*/) + (threadIdx.x % b_sh_stride/*128*/);
@@ -618,14 +618,14 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       // e.g., for two warps we write only once by warp 1 and read only once by warp 0. 
 
       #pragma unroll
-      for (int m_block = 0; m_block < thread_m_blocks; m_block++) {
+      for (int m_block = 0; m_block < thread_m_blocks/*4*/; m_block++) {
         #pragma unroll
-        for (int i = red_off; i > 0; i /= 2) {
+        for (int i = red_off/*1*/; i > 0; i /= 2) {
           if (i <= red_idx && red_idx < 2 * i) {
             #pragma unroll
             for (int j = 0; j < 4 * 2; j++) {
               int red_sh_wr = red_sh_delta * j + (red_sh_rd - red_sh_stride * i);
-              if (i < red_off) {
+              if (i < red_off/*1*/) {
                 float* c_rd = reinterpret_cast<float*>(&sh[red_sh_delta * j + red_sh_rd]);
                 float* c_wr = reinterpret_cast<float*>(&sh[red_sh_wr]);
                 #pragma unroll
