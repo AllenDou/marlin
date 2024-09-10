@@ -614,6 +614,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       constexpr int red_sh_delta/*128*/ = b_sh_stride/*128*/; 
       int red_sh_rd = red_sh_stride/*1024*/ * (threadIdx.x / b_sh_stride/*128*/) + (threadIdx.x % b_sh_stride/*128*/);
 
+      // !!! I think this red's shape is thread_m_blocks * (4 * 2 * b_sh_stride)
       // Parallel logarithmic shared memory reduction. We make sure to avoid any unnecessary read or write iterations,
       // e.g., for two warps we write only once by warp 1 and read only once by warp 0. 
 
