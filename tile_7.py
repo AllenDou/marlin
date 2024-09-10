@@ -1,7 +1,7 @@
 threads = 256
 b_sh_stride = 128
 thread_m_blocks = 4
-threadIdx_x = 0
+threadIdx_x = 128
 red_off = threads / b_sh_stride / 2  # 1
 
 #import pdb; pdb.set_trace()
@@ -16,9 +16,9 @@ if (red_off >= 1):
     while i>0:
       if i <= red_idx and red_idx < 2 * i :
         for j in range(0, 4*2):
-          red_sh_wr = red_sh_delta * j + (red_sh_rd - red_sh_stride * i)
+          red_sh_wr = int(red_sh_delta * j + (red_sh_rd - red_sh_stride * i))
           #sh[red_sh_wr] = reinterpret_cast<int4*>(&frag_c)[4 * 2 * m_block + j];
-          print(f"frag_c[{4*2*m_block+j}]")
+          print(f"{red_sh_rd=} {red_sh_wr=:3} frag_c[{4*2*m_block+j}]")
       i = int(i / 2)
 
     if red_idx == 0 :

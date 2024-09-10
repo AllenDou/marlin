@@ -624,7 +624,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
           if (i <= red_idx && red_idx < 2 * i) { // for threadIdx.x=128-255
             //#pragma unroll
             for (int j = 0; j < 4 * 2; j++) {
-              int red_sh_wr = red_sh_delta * j + (red_sh_rd/*by threadIdx.x*/ - red_sh_stride * i);
+              int red_sh_wr = red_sh_delta/*128*/ * j + (red_sh_rd/*by threadIdx.x*/ - red_sh_stride/*1024*/ * i);
               //if (i < red_off/*1*/) { /* this if statement is not runnning because i(1) < red_off(1) is false. */
               //  float* c_rd = reinterpret_cast<float*>(&sh[red_sh_delta * j + red_sh_rd]);
               //  float* c_wr = reinterpret_cast<float*>(&sh[red_sh_wr]);
@@ -634,6 +634,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
               //}
               //sh[red_sh_wr] = reinterpret_cast<int4*>(&frag_c)[4 * 2 * m_block + j];
               float *p = reinterpret_cast<float*>(&frag_c) + 4*(4 * 2 * m_block + j);
+              // now a/b/s tile on sh are useless, so red could reuse sh.
               sh[red_sh_wr].x = *reinterpret_cast<int*>(p);
               sh[red_sh_wr].y = *reinterpret_cast<int*>(p+1);
               sh[red_sh_wr].z = *reinterpret_cast<int*>(p+2);
