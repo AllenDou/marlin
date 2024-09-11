@@ -375,7 +375,7 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   // s shape [4096/128, 4096] fp16 = [32, 4096] fp16
   /*******/ int s_gl_stride /*512 个int4*/ = prob_n/*4096*/ / 8;
   constexpr int s_sh_stride /*32 个int4*/ = 16 * thread_n_blocks/*16*/ / 8;
-  constexpr int s_sh_stage /*32 个int4*/ = s_sh_stride; // 一行就是一个stage
+  constexpr int s_sh_stage /*32 个int4*/ = s_sh_stride; // 一行就是一个stage, 1*thread_n_blocks = 1*16, 共计16*16=256个fp16
   /*******/ int s_gl_rd_delta /*512 个int4*/ = s_gl_stride;
 
   if (0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && \
@@ -434,7 +434,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   #pragma unroll
   for (int i = 0; i < a_sh_wr_iters/*2*/; i++)
     a_sh_wr_pred[i] = a_sh_wr_delta/*256*/ * i + a_sh_wr < a_sh_stride/*8*/ * prob_m/*64*/;
-  bool s_sh_wr_pred = threadIdx.x < s_sh_stride;
+  bool s_sh_wr_pred = threadIdx.x < s_sh_stride/*32*/;
 
   // To ensure that writing and reading A tiles to/from shared memory, the latter in fragment format, is fully bank
   // conflict free, we need to use a rather fancy XOR-based layout. The key here is that neither reads nor writes of 
@@ -522,9 +522,10 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       if (group_blocks/*8*/ != -1 && pipe % (group_blocks/*8*/ / thread_k_blocks/*4*/) == 0) {
         // when pipe=0 or pipe=2, meaning 8 k dimension blocks passed, 8*16=128 number (quantied by one scale)
         int4* sh_s_stage = sh_s + s_sh_stage * pipe;
-        if (s_sh_wr_pred) // copy 16 bytes = 2 fp16
+        if (s_sh_wr_pred) // copy 16 bytes
+          // only when threadIdx.x < s_sh_stride/*32*/
           cp_async4_stream(&sh_s_stage[s_sh_wr], &s[s_gl_rd]); /* by threadIdx.x*/
-        s_gl_rd += s_gl_rd_delta;
+        s_gl_rd += s_gl_rd_delta/*512*/;
       }
     }
     // Insert a fence even when we are winding down the pipeline to ensure that waiting is also correct at this point.
