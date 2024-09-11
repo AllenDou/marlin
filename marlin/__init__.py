@@ -141,6 +141,7 @@ class Layer(nn.Module):
         w = torch.round(w / s).int()
         w += (maxq + 1) // 2 # make sign number to unsighned 0-15, 4bits
         w = torch.clamp(w, 0, maxq)
+        import pdb; pdb.set_trace()
         if self.groupsize != self.k:
             w = w.reshape((self.groupsize, -1, self.n))
             w = w.permute(1, 0, 2)
@@ -153,15 +154,13 @@ class Layer(nn.Module):
         w = w.permute((0, 2, 1, 3))
         w = w.reshape((self.k // tile, self.n * tile))
         res = w
-        import pdb; pdb.set_trace()
         res = res.reshape((-1, _perm.numel()))[:, _perm].reshape(res.shape)
-        #import pdb; pdb.set_trace()
         qq = np.zeros((res.shape[0], res.shape[1] // 8), dtype=np.uint32)
         res = res.cpu().numpy().astype(np.uint32)
         #  p res[0][0:8] = [ 5,  5,  5,  1, 10,  2,  8,  5] 8个数 每个占用4bit, 合并起来一个int32 1479152981
         for i in range(8):
             qq |= res[:, i::8] << 4 * i
-        #import pdb; pdb.set_trace()
+        import pdb; pdb.set_trace()
         qq = torch.from_numpy(qq.astype(np.int32)).to(w.device)
         self.B[:, :] = qq.to(self.B.device)
         self.s[:, :] = s.to(self.s.device) #0.3533
