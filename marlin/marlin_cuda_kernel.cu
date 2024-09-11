@@ -375,6 +375,7 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   // s shape [4096/128, 4096] fp16 = [32, 4096] fp16
   /*******/ int s_gl_stride /*512 个int4*/ = prob_n/*4096*/ / 8;
   constexpr int s_sh_stride /*32 个int4*/ = 16 * thread_n_blocks/*16*/ / 8;
+                            //配合 s_sh_wr_pred 来看, 另一个含义是 32个线程
   constexpr int s_sh_stage /*32 个int4*/ = s_sh_stride; // 一行就是一个stage, 1*thread_n_blocks = 1*16, 共计16*16=256个fp16
   /*******/ int s_gl_rd_delta /*512 个int4*/ = s_gl_stride;
 

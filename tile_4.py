@@ -52,7 +52,8 @@ for threadIdx_x in range(256):
     s_sh_rd = 8 * (int(threadIdx_x / 32) % int(thread_n_blocks / 4)) + int((threadIdx_x % 32) / 4)
     #s_sh_rd = 8 * (int(threadIdx_x / 32) % int(thread_n_blocks / 4)) + int((threadIdx_x % 32) % 4)
     print(f"{threadIdx_x:3}| {a_gl_rd=:5} {a_sh_wr=:3} a_sh_wr_trans={a_sh_wr_trans0:3}/{a_sh_wr_trans1:3} {a_sh_rd=:3} \
-a_sh_rd_trans={a_sh_rd_trans0:3}/{a_sh_rd_trans1:3} |{b_gl_rd=:4} {b_sh_wr=:3} {b_sh_rd=:3} |{s_gl_rd=:3} {s_sh_wr=:3} {s_sh_rd=:2}")
+a_sh_rd_trans={a_sh_rd_trans0:3}/{a_sh_rd_trans1:3} |{b_gl_rd=:4} {b_sh_wr=:3} {b_sh_rd=:3} |{s_gl_rd=:3} {s_sh_wr=:3} \
+{s_sh_rd=:2} tid={threadIdx_x:3}")
 
 print(trans0)
 plt.scatter(range(len(trans0)), trans0)
