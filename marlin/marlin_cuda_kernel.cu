@@ -520,8 +520,9 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
 
       // fetch s, Only fetch scales if this tile starts a new group
       if (group_blocks/*8*/ != -1 && pipe % (group_blocks/*8*/ / thread_k_blocks/*4*/) == 0) {
+        // when pipe=0 or pipe=2, meaning 8 k dimension blocks passed, 8*16=128 number (quantied by one scale)
         int4* sh_s_stage = sh_s + s_sh_stage * pipe;
-        if (s_sh_wr_pred) // copy 16 bytes
+        if (s_sh_wr_pred) // copy 16 bytes = 2 fp16
           cp_async4_stream(&sh_s_stage[s_sh_wr], &s[s_gl_rd]); /* by threadIdx.x*/
         s_gl_rd += s_gl_rd_delta;
       }
