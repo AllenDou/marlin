@@ -133,7 +133,6 @@ class Layer(nn.Module):
         maxq = 2 ** 4 - 1 # = 15
         s = scales.t()
         w = linear.weight.data.t()
-        import pdb; pdb.set_trace()
         if self.groupsize != self.k:
             w = w.reshape((-1, self.groupsize, self.n))
             w = w.permute(1, 0, 2)
@@ -150,11 +149,11 @@ class Layer(nn.Module):
         else:
             s = s.reshape((-1, len(_scale_perm_single)))[:, _scale_perm_single]
         s = s.reshape((-1, self.n)).contiguous()
-        #import pdb; pdb.set_trace()
         w = w.reshape((self.k // tile, tile, self.n // tile, tile))
         w = w.permute((0, 2, 1, 3))
         w = w.reshape((self.k // tile, self.n * tile))
         res = w
+        import pdb; pdb.set_trace()
         res = res.reshape((-1, _perm.numel()))[:, _perm].reshape(res.shape)
         #import pdb; pdb.set_trace()
         qq = np.zeros((res.shape[0], res.shape[1] // 8), dtype=np.uint32)
