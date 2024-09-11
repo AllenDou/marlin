@@ -839,7 +839,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
         slice_row, slice_col, slice_iters, slice_count);
       }
       if (slice_iters) {
-        a_gl_rd = a_gl_stride/*512*/ * (threadIdx.x / a_gl_rd_delta_o) + (threadIdx.x % a_gl_rd_delta_o);
+        a_gl_rd = a_gl_stride/*512*/ * (threadIdx.x / a_gl_rd_delta_o/*8*/) + (threadIdx.x % a_gl_rd_delta_o/*8*/);
         #pragma unroll
         for (int i = 0; i < b_sh_wr_iters; i++)
           B_ptr[i] += b_sh_stride - b_gl_rd_delta_o * k_tiles;

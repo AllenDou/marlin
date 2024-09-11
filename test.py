@@ -19,6 +19,7 @@ def gen_quant4(m, _n, groupsize=-1):
     tile = 16
     maxq = 2 ** 4 - 1
     w = torch.randn((m, _n), dtype=torch.half, device=DEV)
+    w_bk = w
     if groupsize != -1: # 128
         w = w.reshape((-1, groupsize, _n))
         w = w.permute(1, 0, 2)
@@ -41,6 +42,7 @@ def gen_quant4(m, _n, groupsize=-1):
         ref = reshape(ref)
         w = reshape(w)
     s = s.reshape((-1, _n)).contiguous()
+    s_bk = s
     linear = nn.Linear(m, _n)
     linear.weight.data = ref.t()
     # Workaround to test some special cases that are forbidden by the API
@@ -52,7 +54,7 @@ def gen_quant4(m, _n, groupsize=-1):
     layer.groupsize = groupsize
     layer.B = torch.empty((m // 16, _n * 16 // 8), dtype=torch.int, device=DEV)
     layer.s = torch.empty((m // groupsize, _n), dtype=torch.half, device=DEV)
-    layer.pack(linear, s.t())
+    layer.pack(linear, s.t(), w_bk, s_bk)
     quant = layer.B
     s = layer.s
     return ref, quant, s
