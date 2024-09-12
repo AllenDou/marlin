@@ -748,12 +748,13 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
         res = __hmul2(res, s[0]);
       ((half2*) sh)[idx] = res;
     };
-    if (threadIdx.x / 32 < thread_n_blocks/*16*/ / 4) {
+    if (threadIdx.x / 32 < thread_n_blocks/*16*/ / 4) { // for threadIdx.x=0-127
       #pragma unroll
       for (int i = 0; i < thread_m_blocks/*4*/; i++) {
         #pragma unroll
         for (int j = 0; j < 4; j++) {
           int wr = c_sh_wr + 8 * j;
+          // /*Vec<float, 4>*/ FragC frag_c[thread_m_blocks/*4*/][4][2];
           write(wr + (4 * c_sh_stride) * 0 + 0, frag_c[i][j][0][0], frag_c[i][j][0][1], frag_s[j / 2][2 * (j % 2) + 0]);
           write(wr + (4 * c_sh_stride) * 8 + 0, frag_c[i][j][0][2], frag_c[i][j][0][3], frag_s[j / 2][2 * (j % 2) + 0]);
           write(wr + (4 * c_sh_stride) * 0 + 4, frag_c[i][j][1][0], frag_c[i][j][1][1], frag_s[j / 2][2 * (j % 2) + 1]);
@@ -765,11 +766,11 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     __syncthreads();
 
     #pragma unroll
-    for (int i = 0; i < ceildiv(16 * thread_m_blocks/*4*/, threads/*256*/ / (2 * thread_n_blocks/*16*/)); i++) {
+    for (int i = 0; i < /*8*/ceildiv(16 * thread_m_blocks/*4*/, threads/*256*/ / (2 * thread_n_blocks/*16*/)); i++) {
       if (c_gl_wr < c_gl_wr_end/*32768*/) {
         C[c_gl_wr] = sh[c_sh_rd];
-        c_gl_wr += c_gl_wr_delta;
-        c_sh_rd += c_sh_rd_delta;
+        c_gl_wr += c_gl_wr_delta/*4096*/;
+        c_sh_rd += c_sh_rd_delta/*264*/;
       }
     }
   };
