@@ -24,9 +24,9 @@ if threadIdx_x / 32 < thread_n_blocks / 4:
     for i in range(thread_m_blocks):
         for j in range(4):
             wr = c_sh_wr + 8*j
-            print(f"{int(wr+(4*c_sh_stride) * 0 + 0)=:4}, frag_c[{i}][{j}][{0}][{0}], frag_c[{i}][{j}][{0}][{1}]")
-            print(f"{int(wr+(4*c_sh_stride) * 8 + 0)=:4}, frag_c[{i}][{j}][{0}][{2}], frag_c[{i}][{j}][{0}][{3}]")
-            print(f"{int(wr+(4*c_sh_stride) * 0 + 4)=:4}, frag_c[{i}][{j}][{1}][{0}], frag_c[{i}][{j}][{1}][{1}]")
-            print(f"{int(wr+(4*c_sh_stride) * 8 + 4)=:4}, frag_c[{i}][{j}][{1}][{2}], frag_c[{i}][{j}][{1}][{3}]")
+            print(f"{int(wr+(4*c_sh_stride) * 0 + 0)=:4}, frag_c[{i}][{j}][{0}][{0}], frag_c[{i}][{j}][{0}][{1}] frag_s[{int(j/2)}][{2*(j%2)+0}]")
+            print(f"{int(wr+(4*c_sh_stride) * 8 + 0)=:4}, frag_c[{i}][{j}][{0}][{2}], frag_c[{i}][{j}][{0}][{3}] frag_s[{int(j/2)}][{2*(j%2)+0}]")
+            print(f"{int(wr+(4*c_sh_stride) * 0 + 4)=:4}, frag_c[{i}][{j}][{1}][{0}], frag_c[{i}][{j}][{1}][{1}] frag_s[{int(j/2)}][{2*(j%2)+1}]")
+            print(f"{int(wr+(4*c_sh_stride) * 8 + 4)=:4}, frag_c[{i}][{j}][{1}][{2}], frag_c[{i}][{j}][{1}][{3}] frag_s[{int(j/2)}][{2*(j%2)+1}]")
         c_sh_wr += 16 * (4*c_sh_stride)
 
