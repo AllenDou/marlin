@@ -145,7 +145,7 @@ class Layer(nn.Module):
             w = w.reshape((self.groupsize, -1, self.n))
             w = w.permute(1, 0, 2)
             w = w.reshape((self.k, self.n)).contiguous()
-            import pdb; pdb.set_trace()
+            #import pdb; pdb.set_trace()
             s = s.reshape((-1, len(_scale_perm)))[:, _scale_perm]
         else:
             s = s.reshape((-1, len(_scale_perm_single)))[:, _scale_perm_single]

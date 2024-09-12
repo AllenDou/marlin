@@ -487,6 +487,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   /*Vec<half2, 4>*/ FragA frag_a[2][thread_m_blocks/*4*/];
   /*Vec<int, 4>*/   I4 frag_b_quant[2];
   /*Vec<float, 4>*/ FragC frag_c[thread_m_blocks/*4*/][4][2];
+                            // 这里的2与前后的2不一样, 前后的2是iter=2的意思, 这里的2是两个m16n8k16拼接成一个m16n16k16的意思
   /*Vec<half2, 1>*/ FragS frag_s[2][4];
 
   // Zero accumulators.
@@ -618,6 +619,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       int red_sh_rd = red_sh_stride/*1024*/ * (threadIdx.x / b_sh_stride/*128*/) + (threadIdx.x % b_sh_stride/*128*/);
 
       // !!! I think this red's shape is thread_m_blocks * (4 * 2 * b_sh_stride)
+
       // Parallel logarithmic shared memory reduction. We make sure to avoid any unnecessary read or write iterations,
       // e.g., for two warps we write only once by warp 1 and read only once by warp 0. 
 
@@ -625,7 +627,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       for (int m_block = 0; m_block < thread_m_blocks/*4*/; m_block++) {
         //#pragma unroll
         for (int i = red_off/*1*/; i > 0; i /= 2) {
-          if (i <= red_idx && red_idx < 2 * i) { // for threadIdx.x=128-255, 这些协程把frag_c写到sh
+          if (i <= red_idx && red_idx < 2 * i) { // for threadIdx.x=128-255, 这些线程把frag_c写到sh
             //#pragma unroll
             for (int j = 0; j < 4 * 2; j++) {
               int red_sh_wr = red_sh_delta/*128*/ * j + (red_sh_rd/*by threadIdx.x*/ - red_sh_stride/*1024*/ * i/*1*/);
@@ -640,6 +642,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
               //sh[red_sh_wr] = reinterpret_cast<int4*>(&frag_c)[4 * 2 * m_block + j];
               float *p = reinterpret_cast<float*>(&frag_c) + 4*(4 * 2 * m_block + j);
               // now a/b/s tile on sh are useless, so red could reuse sh.
+              // 简单说这里就是 把一个线程hold住的 4*2个float, 顺序存放到sh[red_sh_wr], 一共有128个线程
               sh[red_sh_wr].x = *reinterpret_cast<int*>(p);
               sh[red_sh_wr].y = *reinterpret_cast<int*>(p+1);
               sh[red_sh_wr].z = *reinterpret_cast<int*>(p+2);
@@ -648,7 +651,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
           }
           __syncthreads();
         }
-        if (red_idx == 0) { // for threadIdx.x=0-127, 这些线程和 之前threadIdx.x=128-255写到sh里的数据进行累加
+        if (red_idx == 0) { // for threadIdx.x=0-127, 这些线程和之前threadIdx.x=128-255写到sh里的数据进行累加
           //#pragma unroll
           for (int i = 0; i < 4 * 2; i++) {
             float* c_rd = reinterpret_cast<float*>(&sh[red_sh_delta/*128*/ * i + red_sh_rd/* by threadIdx.x*/]);

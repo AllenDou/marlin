@@ -1,7 +1,7 @@
 threads = 256
 b_sh_stride = 128
 thread_m_blocks = 4
-threadIdx_x = 0
+threadIdx_x = 129
 red_off = threads / b_sh_stride / 2  # 1
 
 print(f"{threadIdx_x=}")
