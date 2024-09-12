@@ -625,7 +625,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       for (int m_block = 0; m_block < thread_m_blocks/*4*/; m_block++) {
         //#pragma unroll
         for (int i = red_off/*1*/; i > 0; i /= 2) {
-          if (i <= red_idx && red_idx < 2 * i) { // for threadIdx.x=128-255
+          if (i <= red_idx && red_idx < 2 * i) { // for threadIdx.x=128-255, 这些协程把frag_c写到sh
             //#pragma unroll
             for (int j = 0; j < 4 * 2; j++) {
               int red_sh_wr = red_sh_delta/*128*/ * j + (red_sh_rd/*by threadIdx.x*/ - red_sh_stride/*1024*/ * i/*1*/);
@@ -636,6 +636,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
               //  for (int k = 0; k < 4; k++)
               //    reinterpret_cast<FragC*>(frag_c)[4 * 2 * m_block + j][k] += c_rd[k] + c_wr[k];
               //}
+              // /*Vec<float, 4>*/ FragC frag_c[thread_m_blocks/*4*/][4][2];
               //sh[red_sh_wr] = reinterpret_cast<int4*>(&frag_c)[4 * 2 * m_block + j];
               float *p = reinterpret_cast<float*>(&frag_c) + 4*(4 * 2 * m_block + j);
               // now a/b/s tile on sh are useless, so red could reuse sh.
@@ -647,7 +648,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
           }
           __syncthreads();
         }
-        if (red_idx == 0) { // for threadIdx.x=0-127
+        if (red_idx == 0) { // for threadIdx.x=0-127, 这些线程和 之前threadIdx.x=128-255写到sh里的数据进行累加
           //#pragma unroll
           for (int i = 0; i < 4 * 2; i++) {
             float* c_rd = reinterpret_cast<float*>(&sh[red_sh_delta/*128*/ * i + red_sh_rd/* by threadIdx.x*/]);
