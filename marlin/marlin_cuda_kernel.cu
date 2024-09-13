@@ -677,8 +677,9 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
             //#pragma unroll
             for (int j = 0; j < 4; j++)
               reinterpret_cast<FragC*>(frag_c)[4 * 2 * m_block + i][j] += c_rd[j];
-              // 做完thread_block_reduce, 各个线程hold自己的那一分fragment在寄存器里.
-              // write_result 会把各个线程寄存器里的fragment 写到shared memory, 然后再写到global memory.
+              // 做完thread_block_reduce, 0-127线程hold整个 4*16*16*16整个结果.
+              // write_result 会把各个线程0-127, 寄存器里的fragment 写到shared memory, 然后再写到global memory.
+              // 所以, 如果后边有global_reduce的话, 也只是0-127线程工作, 因为128-255线程的数据已经被reduce进入0-127了.
           }
         }
         __syncthreads();
@@ -694,6 +695,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     // To do this, we write out results in FP16 (but still reduce with FP32 compute).
     constexpr int active_threads /*128*/ = 32 * thread_n_blocks/*16*/ / 4;
     if (threadIdx.x < active_threads/*128*/) {
+      // 线程128-255的数据已经被reduce到0-127,so, 只需要0-127工作即可
       int c_gl_stride/*512 int4*/ = prob_n/*4096*/ / 8;
       int c_gl_wr_delta_o/*4096 int4*/ = 8 * c_gl_stride;
       int c_gl_wr_delta_i/*16*/ = 4 * (active_threads/*128*/ / 32);
@@ -702,7 +704,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       constexpr int c_sh_wr_delta /*128*/ = active_threads/*128*/;
       int c_sh_wr = threadIdx.x;
 
-      int row = (threadIdx.x % 32) / 4;
+      int row = (threadIdx.x % 32) / 4; // 0 - 7
 
       if (!first) {
         // Interestingly, doing direct global accesses here really seems to mess up the compiler and lead to slowdowns,
@@ -721,7 +723,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
 
       #pragma unroll
       for (int i = 0; i < thread_m_blocks * 4; i++) {
-        if (i < (thread_m_blocks - 1) * 4 || 8 * (i / 2) + row < prob_m) {
+        if (i < (thread_m_blocks - 1) * 4 || 8 * (i / 2) + row < prob_m/*64*/) {
           if (!first) {
             int4 c_red = sh[c_sh_wr + i * c_sh_wr_delta];
             #pragma unroll
@@ -866,11 +868,12 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       }
       if (slice_count > 1) { // only globally reduce if there is more than one block in a slice
         barrier_acquire(&locks[slice_col], slice_idx);
+        // 一列slice里, 下面的block先运行, reduce运行完, 放开锁, 上面的block拿到锁才做reduce
         global_reduce(slice_idx == 0, last);
           // 这里有三种可能,
-          // 1) 这个last=1 fist=0
-          // 2) 这个last=0 fist=0, 当前slice太小
-          // 3) 这个last=0 fist=1
+          // 1) fist=0  last=1
+          // 2) fist=0, last=0 当前slice太小
+          // 3) fist=1  last=0
         barrier_release(&locks[slice_col], last);
       }
       if (last) // only the last block in a slice actually writes the result
