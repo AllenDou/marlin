@@ -869,6 +869,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       if (slice_count > 1) { // only globally reduce if there is more than one block in a slice
         barrier_acquire(&locks[slice_col], slice_idx);
         // 一列slice里, 下面的block先运行, reduce运行完, 放开锁, 上面的block拿到锁才做reduce
+        // 简单说就是上面等下面
         global_reduce(slice_idx == 0, last);
           // 这里有三种可能,
           // 1) fist=0  last=1
