@@ -730,21 +730,23 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   auto write_result = [&] () {
     int c_gl_stride/*512*/ = prob_n/*4096*/ / 8;
     constexpr int c_sh_stride/*33*/ = 2 * thread_n_blocks/*16*/ + 1;
-    int c_gl_wr_delta/*4096*/ = c_gl_stride * (threads/*256*/ / (2 * thread_n_blocks/*16*/));
+                  // 没看懂这个公式, 应该是C tile横向 16*16=256/8=32 为什么要+1 没明白.
+    int c_gl_wr_delta/*4096*/ = c_gl_stride/*512*/ * (threads/*256*/ / (2 * thread_n_blocks/*16*/));
     constexpr int c_sh_rd_delta/*264*/ = c_sh_stride/*33*/ * (threads / (2 * thread_n_blocks));
+                  // 应该是C tile的一大行, 相当于一个M对应的C tile一行 16*16*
 
     int c_gl_wr = c_gl_stride/*512*/ * (threadIdx.x / (2 * thread_n_blocks/*16*/)) + (threadIdx.x % (2 * thread_n_blocks/*16*/));
     c_gl_wr += (2 * thread_n_blocks/*16*/) * slice_col/*2 when blockIdx.x == 1*/;
-    int c_sh_wr = (4 * c_sh_stride) * ((threadIdx.x % 32) / 4) + (threadIdx.x % 32) % 4;
+    int c_sh_wr = (4 * c_sh_stride/*33*/) * ((threadIdx.x % 32) / 4) + (threadIdx.x % 32) % 4;
     c_sh_wr += 32 * (threadIdx.x / 32);
-    int c_sh_rd = c_sh_stride * (threadIdx.x / (2 * thread_n_blocks)) + (threadIdx.x % (2 * thread_n_blocks));
+    int c_sh_rd = c_sh_stride/*33*/ * (threadIdx.x / (2 * thread_n_blocks)) + (threadIdx.x % (2 * thread_n_blocks));
 
     int c_gl_wr_end/*32768*/ = c_gl_stride/*512*/ * prob_m/*64*/;
 
     // We first reorder in shared memory to guarantee the most efficient final global write patterns
     auto write = [&] (int idx, float c0, float c1, FragS& s) {
       half2 res = __halves2half2(__float2half(c0), __float2half(c1));
-      if (group_blocks == -1) // for per-column quantization we finally apply the scale here
+      if (group_blocks/*8*/ == -1) // for per-column quantization we finally apply the scale here
         res = __hmul2(res, s[0]);
       ((half2*) sh)[idx] = res;
     };
@@ -759,6 +761,8 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
           write(wr + (4 * c_sh_stride) * 8 + 0, frag_c[i][j][0][2], frag_c[i][j][0][3], frag_s[j / 2][2 * (j % 2) + 0]);
           write(wr + (4 * c_sh_stride) * 0 + 4, frag_c[i][j][1][0], frag_c[i][j][1][1], frag_s[j / 2][2 * (j % 2) + 1]);
           write(wr + (4 * c_sh_stride) * 8 + 4, frag_c[i][j][1][2], frag_c[i][j][1][3], frag_s[j / 2][2 * (j % 2) + 1]);
+          // + 4 意味着横向向右走4步, 每步是 half2, 共计8个half, 也就是m16n8k16 的C 的layout的一行横向8个half, 4步后就是另一个m16n8k16了
+          // C最终结果用fp16存储 fp16=half
         }
         c_sh_wr += 16 * (4 * c_sh_stride);
       }
@@ -768,6 +772,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     #pragma unroll
     for (int i = 0; i < /*8*/ceildiv(16 * thread_m_blocks/*4*/, threads/*256*/ / (2 * thread_n_blocks/*16*/)); i++) {
       if (c_gl_wr < c_gl_wr_end/*32768*/) {
+        // 256个线程, 把各自sh里的拥有的数据写到全局的C里
         C[c_gl_wr] = sh[c_sh_rd];
         c_gl_wr += c_gl_wr_delta/*4096*/;
         c_sh_rd += c_sh_rd_delta/*264*/;

@@ -1,5 +1,5 @@
 threads = 256
-threadIdx_x = 0
+threadIdx_x = 1
 thread_m_blocks = 4
 thread_n_blocks = 16
 
