@@ -732,8 +732,8 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     constexpr int c_sh_stride/*33*/ = 2 * thread_n_blocks/*16*/ + 1;
                   // 没看懂这个公式, 应该是C tile横向 16*16=256/8=32 为什么要+1 没明白.
     int c_gl_wr_delta/*4096*/ = c_gl_stride/*512*/ * (threads/*256*/ / (2 * thread_n_blocks/*16*/));
-    constexpr int c_sh_rd_delta/*264*/ = c_sh_stride/*33*/ * (threads / (2 * thread_n_blocks));
-                  // 应该是C tile的一大行, 相当于一个M对应的C tile一行 16*16*
+    constexpr int c_sh_rd_delta/*264*/ = c_sh_stride/*33*/ * (threads/*256*/ / (2 * thread_n_blocks/*16*/));
+                  //
 
     int c_gl_wr = c_gl_stride/*512*/ * (threadIdx.x / (2 * thread_n_blocks/*16*/)) + (threadIdx.x % (2 * thread_n_blocks/*16*/));
     c_gl_wr += (2 * thread_n_blocks/*16*/) * slice_col/*2 when blockIdx.x == 1*/;

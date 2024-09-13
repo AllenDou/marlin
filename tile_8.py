@@ -1,7 +1,7 @@
 threads = 256
-threadIdx_x = 1
 thread_m_blocks = 4
 thread_n_blocks = 16
+threadIdx_x = 0
 
 prob_n = 4096
 slice_col = 0
@@ -24,9 +24,16 @@ if threadIdx_x / 32 < thread_n_blocks / 4:
     for i in range(thread_m_blocks):
         for j in range(4):
             wr = c_sh_wr + 8*j
+            print(f"{int(c_sh_wr)=}")
             print(f"{int(wr+(4*c_sh_stride) * 0 + 0)=:4}, frag_c[{i}][{j}][{0}][{0}], frag_c[{i}][{j}][{0}][{1}] frag_s[{int(j/2)}][{2*(j%2)+0}]")
             print(f"{int(wr+(4*c_sh_stride) * 8 + 0)=:4}, frag_c[{i}][{j}][{0}][{2}], frag_c[{i}][{j}][{0}][{3}] frag_s[{int(j/2)}][{2*(j%2)+0}]")
             print(f"{int(wr+(4*c_sh_stride) * 0 + 4)=:4}, frag_c[{i}][{j}][{1}][{0}], frag_c[{i}][{j}][{1}][{1}] frag_s[{int(j/2)}][{2*(j%2)+1}]")
             print(f"{int(wr+(4*c_sh_stride) * 8 + 4)=:4}, frag_c[{i}][{j}][{1}][{2}], frag_c[{i}][{j}][{1}][{3}] frag_s[{int(j/2)}][{2*(j%2)+1}]")
         c_sh_wr += 16 * (4*c_sh_stride)
 
+print("")
+for i in range(int(16*thread_m_blocks/(threads/(2*thread_n_blocks)))):
+  if c_gl_wr < c_gl_wr_end:
+    print(f"C[{int(c_gl_wr)}]=sh[{int(c_sh_rd)}]")
+    c_gl_wr += c_gl_wr_delta
+    c_sh_rd += c_sh_rd_delta
