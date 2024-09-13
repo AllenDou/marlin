@@ -887,16 +887,18 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
         slice_row, slice_col, slice_iters, slice_count);
       }
       if (slice_iters) {
+        // 比如, 当blockIdx.x = 1时, 一开始处理n个b tile后, 和前一个slice 做完global reduce后, 再用init_slice重新计算后,
+        // 就开始处理slice的下一部分, 这部分从顶端 row=0开始.
         a_gl_rd = a_gl_stride/*512*/ * (threadIdx.x / a_gl_rd_delta_o/*8*/) + (threadIdx.x % a_gl_rd_delta_o/*8*/);
         #pragma unroll
-        for (int i = 0; i < b_sh_wr_iters; i++)
+        for (int i = 0; i < b_sh_wr_iters/*2*/; i++)
           B_ptr[i] += b_sh_stride - b_gl_rd_delta_o * k_tiles;
         if (slice_col == 0) {
           #pragma unroll
           for (int i = 0; i < b_sh_wr_iters; i++)
             B_ptr[i] -= b_gl_stride;
         }
-        s_gl_rd = s_sh_stride * slice_col + threadIdx.x;
+        s_gl_rd = s_sh_stride/*32*/ * slice_col + threadIdx.x;
         start_pipes();
       }
     }
