@@ -584,10 +584,10 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     int4* sh_a_stage = sh_a + a_sh_stage/*512*/ * pipe;
     #pragma unroll
     for (int i = 0; i < thread_m_blocks; i++) {
-      // 256个线程, 各自load a subtile里自己thread缩对应的fragment, 前128个线程里的其中0-31和32-63和64-95和96-127 load的数据是一样的
+      // 256个线程, 各自load a subtile里自己thread缩对应的fragment
+      // 前128个线程里的其中0-31和32-63和64-95和96-127 load的数据是一样的
       // 后128个线程里的0-31和32-63和64-95和96-127 load的数据是一样的
       ldsm4(frag_a[k % 2][i], &sh_a_stage[a_sh_rd_trans[k % b_sh_wr_iters][i] /*by threadIdx.x */]);
-      i += 0;
     }
 
     // fetch b
