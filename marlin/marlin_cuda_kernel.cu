@@ -677,6 +677,8 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
             //#pragma unroll
             for (int j = 0; j < 4; j++)
               reinterpret_cast<FragC*>(frag_c)[4 * 2 * m_block + i][j] += c_rd[j];
+              // 做完thread_block_reduce, 各个线程hold自己的那一分fragment在寄存器里.
+              // write_result 会把各个线程寄存器里的fragment 写到shared memory, 然后再写到global memory.
           }
         }
         __syncthreads();
