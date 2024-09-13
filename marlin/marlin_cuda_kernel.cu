@@ -736,6 +736,8 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
             // 2048个fp16 除以 16/16 就等于 8行
             // 后续  thread/(2*thread_n_blocks) = 8 就是8行的意思.
             // 以后注意一个细节, 一个线程 处理一个int4是一个最小单位, 一个int4 等于 8 fp16
+            // 另一种解释, 一个c 的subtile, 横向16个数据, 是两个int4(一个int4一个线程), 那么一行有thread_n_blocks(16), 相当于
+            // 2*16 = 32个线程, 我一共有256个线程, 256/32 = 8, 意思就是 256个线程一次性处理8行数据.
     constexpr int c_sh_rd_delta/*264*/ = c_sh_stride/*33*/ * (threads/*256*/ / (2 * thread_n_blocks/*16*/));
                   //
 
