@@ -335,6 +335,7 @@ k_tiles=%d n_tiles=%d parallel=%d", \
                   // 另一个解释, 一行8个线程, 256个线程就是32行, 每行在global的stride=512, 那么32行在global的间隔就是512*32=16384
   constexpr int a_sh_wr_delta /*256 int4*/ = a_sh_stride/*8*/ * (threads / a_gl_rd_delta_o); // between shared memory writes
                   // a tile 被切分成左右两块, 一块的size
+                  // 和 a_gl_rd_delta_i类似, 这个是在shared的间隔 8*(256/8)=256
   constexpr int a_sh_rd_delta_o /*4 thread per block*/ = 2 * ((threads / 32) / (thread_n_blocks/*16*/ / 4));
                   // between shared memory tile reads
                   // a tile 被切分左右两块, 两块的横向距离就是2个block, 2*16=32fp16 /8 = 4int4
@@ -864,6 +865,10 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       if (slice_count > 1) { // only globally reduce if there is more than one block in a slice
         barrier_acquire(&locks[slice_col], slice_idx);
         global_reduce(slice_idx == 0, last);
+          // 这里有三种可能,
+          // 1) 这个last=1 fist=0
+          // 2) 这个last=0 fist=0, 当前slice太小
+          // 3) 这个last=0 fist=1
         barrier_release(&locks[slice_col], last);
       }
       if (last) // only the last block in a slice actually writes the result
