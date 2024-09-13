@@ -1,7 +1,7 @@
 threads = 256
 thread_m_blocks = 4
 thread_n_blocks = 16
-threadIdx_x = 0
+threadIdx_x = 10
 
 prob_n = 4096
 slice_col = 0
@@ -13,11 +13,11 @@ c_sh_stride = 2 * thread_n_blocks + 1
 c_gl_wr_delta = c_gl_stride * int(threads/(2*thread_n_blocks))
 c_sh_rd_delta = c_sh_stride * int(threads / (2*thread_n_blocks))
 
-c_gl_wr = c_gl_stride * (threadIdx_x/(2*thread_n_blocks)) + (threadIdx_x % (2*thread_n_blocks))
+c_gl_wr = c_gl_stride * int(threadIdx_x/(2*thread_n_blocks)) + (threadIdx_x % (2*thread_n_blocks))
 c_gl_wr += (2*thread_n_blocks) * slice_col
 c_sh_wr = (4*c_sh_stride) * ((threadIdx_x % 4) / 4) + (threadIdx_x % 32) % 4
 c_sh_wr += 32*int(threadIdx_x/32)
-c_sh_rd = c_sh_stride * (threadIdx_x/(2*thread_n_blocks)) + (threadIdx_x % (2*thread_n_blocks))
+c_sh_rd = c_sh_stride * int(threadIdx_x/(2*thread_n_blocks)) + (threadIdx_x % (2*thread_n_blocks))
 c_gl_wr_end = c_gl_stride * prob_m
 
 if threadIdx_x / 32 < thread_n_blocks / 4:
