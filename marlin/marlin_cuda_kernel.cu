@@ -320,30 +320,32 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   /* A related. */
   // 8 fp16's is 128bit equal 1 int4(4*32) 128bit
   /*******/ int a_gl_stride /*512 int4*/ = prob_k /*4096*/ / 8; // stride of the A matrix in global memory
-                          // k维度数量/8 = 512 个int4
+                  // k维度数量/8 = 512 个int4
   // We typically use `constexpr` to indicate that this value is a compile-time constant
   constexpr int a_sh_stride /*8 int4 of A*/ = 16 * thread_k_blocks/*4*/ / 8 /*1int4 = 8fp16*/;
-                          // stride of an A matrix tile in shared memory
-                          // a tile一行 4*16=64 fp16/8 = 8int4
+                  // stride of an A matrix tile in shared memory
+                  // a tile一行 4*16=64 fp16/8 = 8int4
   constexpr int a_gl_rd_delta_o /* 8 int4 of A*/ = 16 * thread_k_blocks/*4*/ / 8 /*1int4 = 8fp16*/;
-                          // delta between subsequent A tiles in global memory
-                          // A矩阵两个tile 左上角距离, 相当于一个a tile的a_sh_stride.
+                  // delta between subsequent A tiles in global memory
+                  // A矩阵两个tile 左上角距离, 相当于一个a tile的a_sh_stride.
+                  // 另一个解释, A tile一行 8int4, 相当于8个thread.
   /*******/ int a_gl_rd_delta_i /*16384 int4(include many A tile) every 256 threads*/ \
               = a_gl_stride * (threads /*256*/ / a_gl_rd_delta_o/*8*/); // between subsequent accesses within a tile
-                          // a tile 按照a_sh_wr_iters=2切分左右两份, 一份的stride是16384
+                  // a tile 按照a_sh_wr_iters=2切分左右两份, 一份的stride是16384
+                  // 另一个解释, 一行8个线程, 256个线程就是32行, 每行在global的stride=512, 那么32行在global的间隔就是512*32=16384
   constexpr int a_sh_wr_delta /*256 int4*/ = a_sh_stride/*8*/ * (threads / a_gl_rd_delta_o); // between shared memory writes
-                          // a tile 被切分成左右两块, 一块的size
+                  // a tile 被切分成左右两块, 一块的size
   constexpr int a_sh_rd_delta_o /*4 thread per block*/ = 2 * ((threads / 32) / (thread_n_blocks/*16*/ / 4));
-                          // between shared memory tile reads
-                          // a tile 被切分左右两块, 两块的横向距离就是2个block, 2*16=32fp16 /8 = 4int4
+                  // between shared memory tile reads
+                  // a tile 被切分左右两块, 两块的横向距离就是2个block, 2*16=32fp16 /8 = 4int4
   constexpr int a_sh_rd_delta_i /*128 thread for 16 row*/ = a_sh_stride * 16; // within a shared memory tile
-                          // a tile thread_m_blocks = 4, 每block=1时, 16*64/8=128int4
+                  // a tile thread_m_blocks = 4, 每block=1时, 16*64/8=128int4
   constexpr int a_sh_stage /*512 int4*/= a_sh_stride * (16 * thread_m_blocks/*4*/); // overall size of a tile
-                          // a tile 的整个size 512个int4
+                  // a tile 的整个size 512个int4
   // so, a A's tile is 64*8(int4) = 64*8*8fp16=4096fp16
   // A's size is 64*4096(fp16) = 32768(int4) = 2*16384(int4) 
   constexpr int a_sh_wr_iters /*2 iter*/ = ceildiv(a_sh_stage, a_sh_wr_delta); // number of shared write iterations for a tile
-                          // a tile 整个size / a tile里一块的size = 2块
+                  // a tile 整个size / a tile里一块的size = 2块
 
   /* B related. */
   // 1int4 = 8fp16, 1*fp16 == 4*int4(4bit), so 1int4 = 32int(4bit)
@@ -353,43 +355,43 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   //      这里面的 256*65535 = 256*256*256 第三个256 就是一个b subtile的16*16经过offline的permute处理成连续的256个数
   //
   /*******/ int b_gl_stride /*2048 int4*/ = 16/*reshaped, [k/16, n*16]*/ * prob_n/*4096*/ / 32; // same with above
-                          // B reshape后, N维度数量/32 = 多少个int4
+                  // B reshape后, N维度数量/32 = 多少个int4
   constexpr int b_sh_stride /*128 thread for one row of B*/ = 32/*32 threads in a warp*/ * thread_n_blocks/*16*/ / 4;
-                          // 每行B, 有128个thread, 相当于4个warp
-                          // 另一种解释是 一个btile 256个数(一个subtile是16*16展开成一行), 一行就有256*16 个数, 转成int4, 就是 256*16/32=128个int4
-                          // 再一种解释, 这个4就是固定的4, 意思是让32个线程处理4个subtile, 但是会随着 thread_n_blocks的变化而导致
-                          // b subtile一行用128 或者 64个线程, 那么后边 thread/b_sh_stride 的意思就是256个线程处理几行
+                  // 每行B, 有128个thread, 相当于4个warp
+                  // 另一种解释是 一个btile 256个数(一个subtile是16*16展开成一行), 一行就有256*16 个数, 转成int4, 就是 256*16/32=128个int4
+                  // 再一种解释, 这个4就是固定的4, 意思是让32个线程处理4个subtile, 但是会随着 thread_n_blocks的变化而导致
+                  // b subtile一行用128 或者 64个线程, 那么后边 thread/b_sh_stride 的意思就是256个线程处理几行
   /*******/ int b_gl_rd_delta_o /*8192 int4*/ = b_gl_stride /*2048*/ * thread_k_blocks /*4*/;
-                          // between subsequent A tiles in global memory, 比如一个slice里上下两个tile的delta
-                          // k方向两个b tile起始地址 在 global memory的间隔
+                  // between subsequent A tiles in global memory, 比如一个slice里上下两个tile的delta
+                  // k方向两个b tile起始地址 在 global memory的间隔
   /*******/ int b_gl_rd_delta_i /*4096 int4*/ = b_gl_stride /*2048*/ * (threads/*256*/ / b_sh_stride/*128*/);
-                          //一个b tile 被切分成两个iter, 两个iter之间的delta, 其实就是 b_gl_rd_delta_o/b_sh_wr_iters(2)
-                          //另一个解释, 256线程只能cover 一个Btile的一半, 两个一半B tile在global memory的地址间隔
+                  //一个b tile 被切分成两个iter, 两个iter之间的delta, 其实就是 b_gl_rd_delta_o/b_sh_wr_iters(2)
+                  //另一个解释, 256线程只能cover 一个Btile的一半, 两个一半B tile在global memory的地址间隔
   constexpr int b_sh_wr_delta /*256 thread*/ = threads;
-                          // b 每个tile被切成上下两块, 每块用用掉所有256thread 也就是 8warp
-                          // or 另一种解释, b被拆分成两块, 2*16 * 16*16 fp16/32 = 256 个int4, 这是A 4*2, B是2*16(都是blocks)
-                          // 另一种解释, 这个256就是一次迭代用256个线程处理256个int4的意思
-                          // !!! 一个线程就是一个int4的意思, 一个线程cp也是16个字节, 也就是一个int4
+                  // b 每个tile被切成上下两块, 每块用用掉所有256thread 也就是 8warp
+                  // or 另一种解释, b被拆分成两块, 2*16 * 16*16 fp16/32 = 256 个int4, 这是A 4*2, B是2*16(都是blocks)
+                  // 另一种解释, 这个256就是一次迭代用256个线程处理256个int4的意思
+                  // !!! 一个线程就是一个int4的意思, 一个线程cp也是16个字节, 也就是一个int4
   constexpr int b_sh_rd_delta /*256 thread*/ = threads;
-                          // b 每个tile被切成上下两块, 每块用用掉所有256thread 也就是 8warp
-                          // 另一种解释 和 b_sh_wr_delta 类似
-                          // or 另一种解释, b被拆分成两块, 2*16 * 16*16 fp16/32 = 256 个int4, 这是A 4*2, B是2*16(都是blocks)
+                  // b 每个tile被切成上下两块, 每块用用掉所有256thread 也就是 8warp
+                  // 另一种解释 和 b_sh_wr_delta 类似
+                  // or 另一种解释, b被拆分成两块, 2*16 * 16*16 fp16/32 = 256 个int4, 这是A 4*2, B是2*16(都是blocks)
   constexpr int b_sh_stage /*512 int4 in this '状态'*/ = b_sh_stride/*128*/ * thread_k_blocks/*4*/;
-                          // overall size of a tile
-                          // 另一种解释, 一个btile, 一行用b_sh_stride=128个thread, 一共thread_k_blocks=4行, 共计512个线程
+                  // overall size of a tile
+                  // 另一种解释, 一个btile, 一行用b_sh_stride=128个thread, 一共thread_k_blocks=4行, 共计512个线程
   constexpr int b_sh_wr_iters /*2 iter, 256个线程要iter 2次才能写完*/ = b_sh_stage/*512*/ / b_sh_wr_delta/*256*/;
-                          // 一个btile=512, 除以256个线程, 需要512/256=iter=2次迭代.
+                  // 一个btile=512, 除以256个线程, 需要512/256=iter=2次迭代.
 
   /* scale related. */
   // 1 int4 = 8fp16 
   // s shape [4096/128, 4096] fp16 = [32, 4096] fp16
   /*******/ int s_gl_stride /*512 个int4*/ = prob_n/*4096*/ / 8;
   constexpr int s_sh_stride /*32 个int4*/ = 16 * thread_n_blocks/*16*/ / 8;
-                          //配合 s_sh_wr_pred 来看, 另一个含义是 32个线程
+                  //配合 s_sh_wr_pred 来看, 另一个含义是 32个线程
   constexpr int s_sh_stage /*32 个int4*/ = s_sh_stride;
-                          // 一行就是一个stage, 1*thread_n_blocks = 1*16, 共计16*16=256个fp16
+                  // 一行就是一个stage, 1*thread_n_blocks = 1*16, 共计16*16=256个fp16
   /*******/ int s_gl_rd_delta /*512 个int4*/ = s_gl_stride;
-                          // 一行就是一个delta
+                  // 一行就是一个delta
 
   if (0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && \
   threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
