@@ -369,7 +369,7 @@ k_tiles=%d n_tiles=%d parallel=%d", \
                           // b 每个tile被切成上下两块, 每块用用掉所有256thread 也就是 8warp
                           // or 另一种解释, b被拆分成两块, 2*16 * 16*16 fp16/32 = 256 个int4, 这是A 4*2, B是2*16(都是blocks)
                           // 另一种解释, 这个256就是一次迭代用256个线程处理256个int4的意思
-                          // !!! 一个线程就是一个int4的意思.
+                          // !!! 一个线程就是一个int4的意思, 一个线程cp也是16个字节, 也就是一个int4
   constexpr int b_sh_rd_delta /*256 thread*/ = threads;
                           // b 每个tile被切成上下两块, 每块用用掉所有256thread 也就是 8warp
                           // 另一种解释 和 b_sh_wr_delta 类似
@@ -431,6 +431,9 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   // layout in the former and in row-major in the latter case.
   if (group_blocks/*8*/ != -1)
     s_sh_rd = 8 * ((threadIdx.x / 32) % (thread_n_blocks / 4)) + (threadIdx.x % 32) / 4;
+      // 见 tile_4.py 和 tensor core的B的layout, 4个线程获取的b fragment在一列上, 所以用相同的scale.
+      // 而且btile被分为iter=2, 每个iter有两行, 每行4个warp, 也就是128个线程, 所以, 第0/127线程用的是相同的scale, 因为在一列,
+      // 第 5/132个线程也是一列.
   else
     s_sh_rd = 8 * ((threadIdx.x / 32) % (thread_n_blocks / 4)) + (threadIdx.x % 32) % 4;
   
@@ -448,6 +451,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   for (int i = 0; i < a_sh_wr_iters/*2*/; i++)
     a_sh_wr_pred[i] = a_sh_wr_delta/*256*/ * i + a_sh_wr < a_sh_stride/*8*/ * prob_m/*64*/;
   bool s_sh_wr_pred = threadIdx.x < s_sh_stride/*32*/;
+      // cp s数据的时候 只需要32个线程, 因为每个线程cp 16B, 32个线程就是 512B = 256个fp16, 也就是一行scale数据, 没必要用多于32的线程
 
   // To ensure that writing and reading A tiles to/from shared memory, the latter in fragment format, is fully bank
   // conflict free, we need to use a rather fancy XOR-based layout. The key here is that neither reads nor writes of 
