@@ -1,7 +1,7 @@
 threads = 256
 thread_m_blocks = 4
 thread_n_blocks = 16
-threadIdx_x = 10
+threadIdx_x = 0
 
 prob_n = 4096
 slice_col = 0

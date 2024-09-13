@@ -732,6 +732,10 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     constexpr int c_sh_stride/*33*/ = 2 * thread_n_blocks/*16*/ + 1;
                   // 没看懂这个公式, 应该是C tile横向 16*16=256/8=32 为什么要+1 没明白.
     int c_gl_wr_delta/*4096*/ = c_gl_stride/*512*/ * (threads/*256*/ / (2 * thread_n_blocks/*16*/));
+            // 这里为什么 要乘以 thread/(2*thread_n_blocks) = 8呢? 以为一个thread cp 一个int4, 256个线程cp 256个int4=2048个fp16
+            // 2048个fp16 除以 16/16 就等于 8行
+            // 后续  thread/(2*thread_n_blocks) = 8 就是8行的意思.
+            // 以后注意一个细节, 一个线程 处理一个int4是一个最小单位, 一个int4 等于 8 fp16
     constexpr int c_sh_rd_delta/*264*/ = c_sh_stride/*33*/ * (threads/*256*/ / (2 * thread_n_blocks/*16*/));
                   //
 
@@ -757,6 +761,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
         for (int j = 0; j < 4; j++) {
           int wr = c_sh_wr + 8 * j;
           // /*Vec<float, 4>*/ FragC frag_c[thread_m_blocks/*4*/][4][2];
+          // 0-127个线程把这个hold的数据cp到shared memory, 这样后边0-255个线程就可以并行的把数据从shared memory cp 到全局memory
           write(wr + (4 * c_sh_stride) * 0 + 0, frag_c[i][j][0][0], frag_c[i][j][0][1], frag_s[j / 2][2 * (j % 2) + 0]);
           write(wr + (4 * c_sh_stride) * 8 + 0, frag_c[i][j][0][2], frag_c[i][j][0][3], frag_s[j / 2][2 * (j % 2) + 0]);
           write(wr + (4 * c_sh_stride) * 0 + 4, frag_c[i][j][1][0], frag_c[i][j][1][1], frag_s[j / 2][2 * (j % 2) + 1]);
