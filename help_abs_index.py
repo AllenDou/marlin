@@ -37,8 +37,14 @@ for threadIdx_x in range(256):
 
     a_sh_rd = a_sh_stride * ((threadIdx_x % 32) % 16) + int((threadIdx_x % 32) / 16)
     a_sh_rd += 2 * int(int(threadIdx_x / 32) / int(thread_n_blocks / 4))
-    a_sh_rd_trans0 = transform_a(a_sh_rd_delta_o*0 + a_sh_rd)
-    a_sh_rd_trans1 = transform_a(a_sh_rd_delta_o*1 + a_sh_rd)
+    a_sh_rd_trans00 = transform_a(a_sh_rd_delta_o*0 + a_sh_rd_delta_i*0 + a_sh_rd)
+    a_sh_rd_trans01 = transform_a(a_sh_rd_delta_o*0 + a_sh_rd_delta_i*1 + a_sh_rd)
+    a_sh_rd_trans02 = transform_a(a_sh_rd_delta_o*0 + a_sh_rd_delta_i*2 + a_sh_rd)
+    a_sh_rd_trans03 = transform_a(a_sh_rd_delta_o*0 + a_sh_rd_delta_i*3 + a_sh_rd)
+    a_sh_rd_trans10 = transform_a(a_sh_rd_delta_o*1 + a_sh_rd_delta_i*0 + a_sh_rd)
+    a_sh_rd_trans11 = transform_a(a_sh_rd_delta_o*1 + a_sh_rd_delta_i*1 + a_sh_rd)
+    a_sh_rd_trans12 = transform_a(a_sh_rd_delta_o*1 + a_sh_rd_delta_i*2 + a_sh_rd)
+    a_sh_rd_trans13 = transform_a(a_sh_rd_delta_o*1 + a_sh_rd_delta_i*3 + a_sh_rd)
     #trans0.append(a_sh_rd_trans0)
 
     b_gl_rd = b_gl_stride * int(threadIdx_x / b_sh_stride) + (threadIdx_x % b_sh_stride)
@@ -52,7 +58,8 @@ for threadIdx_x in range(256):
     s_sh_rd = 8 * (int(threadIdx_x / 32) % int(thread_n_blocks / 4)) + int((threadIdx_x % 32) / 4)
     #s_sh_rd = 8 * (int(threadIdx_x / 32) % int(thread_n_blocks / 4)) + int((threadIdx_x % 32) % 4)
     print(f"{threadIdx_x:3}| {a_gl_rd=:5} {a_sh_wr=:3} a_sh_wr_trans={a_sh_wr_trans0:3}/{a_sh_wr_trans1:3} {a_sh_rd=:3} \
-a_sh_rd_trans={a_sh_rd_trans0:3}/{a_sh_rd_trans1:3} |{b_gl_rd=:4} {b_sh_wr=:3} {b_sh_rd=:3} |{s_gl_rd=:3} {s_sh_wr=:3} \
+a_sh_rd_trans={a_sh_rd_trans00:3}/{a_sh_rd_trans01:3}/{a_sh_rd_trans02:3}/{a_sh_rd_trans03:3}/{a_sh_rd_trans10:3}/{a_sh_rd_trans11:3}/{a_sh_rd_trans12:3}/{a_sh_rd_trans13:3} \
+|{b_gl_rd=:4} {b_sh_wr=:3} {b_sh_rd=:3} |{s_gl_rd=:3} {s_sh_wr=:3} \
 {s_sh_rd=:2} tid={threadIdx_x:3}")
 
 print(trans0)
