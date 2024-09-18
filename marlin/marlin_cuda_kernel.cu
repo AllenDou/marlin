@@ -256,7 +256,7 @@ k_tiles=%d n_tiles=%d parallel=%d", \
   // Ensure that the number of tiles in each stripe is a multiple of the groupsize; this avoids an annoying special case
   // where a stripe starts in the middle of group.
   if (group_blocks /*8*/ != -1)
-    iters = (group_blocks /*8*/ / thread_k_blocks/*4*/) * ceildiv(iters/*179*/, (group_blocks/*8*/ / thread_k_blocks));
+    iters = (group_blocks /*8*/ / thread_k_blocks/*4*/) * ceildiv(iters/*179*/, (group_blocks/*8*/ / thread_k_blocks/*4*/));
     // iters = 180
   
   // by zixiao, assume blockIdx.x == 1
@@ -302,8 +302,8 @@ k_tiles=%d n_tiles=%d parallel=%d", \
       }
     }
     if (slice_col == n_tiles) {
-      A += 16 * thread_m_blocks /*4*/ * prob_k / 8;
-      C += 16 * thread_m_blocks /*4*/ * prob_n / 8;
+      A += 16 * thread_m_blocks /*4*/ * prob_k / 8; // move A point to next A
+      C += 16 * thread_m_blocks /*4*/ * prob_n / 8; // move C point to next C
       locks += n_tiles;
       slice_col = 0;
     }
