@@ -846,7 +846,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       if (slice_iters == 0)
         break;
     }
-    a_gl_rd += a_gl_rd_delta_o * stages;
+    a_gl_rd += a_gl_rd_delta_o/*8*/ * stages/*4*/;
 
     // Process results and, if necessary, proceed to the next column slice. While this pattern may not be the most
     // readable, other ways of writing the loop seemed to noticeably worse performance after compliation.
