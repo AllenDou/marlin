@@ -608,7 +608,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   auto matmul = [&] (int k) {
     // We have the m dimension as the inner loop in order to encourage overlapping dequantization and matmul operations.
     //#pragma unroll
-    for (int j = 0; j < 4/* */; j++) {
+    for (int j = 0; j < 4/* 32个线程(1个warp)处理B连续4个sub-tile */; j++) {
       // I4 frag_b_quant[2]; annotate by zixiao.
       int b_quant = frag_b_quant[k % 2][j]; // 1479152981 这个int32 包含8个 4bit数
       int b_quant_shift = b_quant >> 8;
