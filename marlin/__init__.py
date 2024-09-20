@@ -147,7 +147,6 @@ class Layer(nn.Module):
             w = w.permute(1, 0, 2)
             w = w.reshape((self.k, self.n)).contiguous()
             s = s.reshape((-1, len(_scale_perm)))
-            import pdb; pdb.set_trace()
             s = s[:, _scale_perm]
         else:
             s = s.reshape((-1, len(_scale_perm_single)))[:, _scale_perm_single]
@@ -157,6 +156,7 @@ class Layer(nn.Module):
         w = w.reshape((self.k // tile, self.n * tile))
         res = w
         res_shape = w.shape
+        import pdb; pdb.set_trace()
         res = res.reshape((-1, _perm.numel()))
         res = res[:, _perm]
         res = res.reshape(res_shape)
