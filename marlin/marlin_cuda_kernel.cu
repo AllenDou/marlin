@@ -574,10 +574,10 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       //reinterpret_cast<int4*>(&frag_s[k % 2])[0] = sh_s_stage[s_sh_rd]; /* by threadIdx.x*/
       
       int4 *p = reinterpret_cast<int4*>(&frag_s[k % 2]); // = sh_s_stage[s_sh_rd]; /* by threadIdx.x*/
-      p[0].x = sh_s_stage[s_sh_rd].x;
-      p[0].y = sh_s_stage[s_sh_rd].y;
-      p[0].z = sh_s_stage[s_sh_rd].z;
-      p[0].w = sh_s_stage[s_sh_rd].w;
+      p[0].x = sh_s_stage[s_sh_rd].x;/* by threadIdx.x */ // thread 0-3 cp同一份scale thread 4-7 cp同一份scale
+      p[0].y = sh_s_stage[s_sh_rd].y;/* by threadIdx.x */
+      p[0].z = sh_s_stage[s_sh_rd].z;/* by threadIdx.x */
+      p[0].w = sh_s_stage[s_sh_rd].w;/* by threadIdx.x */
     }
 
     // fetch a
