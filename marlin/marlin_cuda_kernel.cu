@@ -636,6 +636,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     if (red_off >= 1) {
       int red_idx /* 0/1 */ = threadIdx.x / b_sh_stride/*128*/;
       constexpr int red_sh_stride/*1024*/ = b_sh_stride/*128*/ * 4 * 2;
+          // 这个1024的意思应该是Ctile 4*16*256/2/8 = 1024, 也就是Ctile的一半, 因为要让thread128-255 cp后一半的数据到sh
       constexpr int red_sh_delta/*128*/ = b_sh_stride/*128*/; 
       int red_sh_rd = red_sh_stride/*1024*/ * (threadIdx.x / b_sh_stride/*128*/) + (threadIdx.x % b_sh_stride/*128*/);
 
