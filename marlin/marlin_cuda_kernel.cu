@@ -757,6 +757,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
     int c_gl_stride/*512*/ = prob_n/*4096*/ / 8;
     constexpr int c_sh_stride/*33*/ = 2 * thread_n_blocks/*16*/ + 1;
             // 没看懂这个公式, 应该是C tile横向 16*16=256/8=32 为什么要+1 没明白.
+            // 测试发现 去掉这个 +1 test case也能通过.
     int c_gl_wr_delta/*4096*/ = c_gl_stride/*512*/ * (threads/*256*/ / (2 * thread_n_blocks/*16*/));
             // 这里为什么 要乘以 thread/(2*thread_n_blocks) = 8呢? 因为一个thread cp 一个int4, 256个线程cp 256个int4=2048个fp16
             // 2048个fp16 除以 16/16 就等于 8行

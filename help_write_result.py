@@ -15,7 +15,7 @@ c_sh_rd_delta = c_sh_stride * int(threads / (2*thread_n_blocks))
 
 c_gl_wr = c_gl_stride * int(threadIdx_x/(2*thread_n_blocks)) + (threadIdx_x % (2*thread_n_blocks))
 c_gl_wr += (2*thread_n_blocks) * slice_col
-c_sh_wr = (4*c_sh_stride) * ((threadIdx_x % 4) / 4) + (threadIdx_x % 32) % 4
+c_sh_wr = (4*c_sh_stride) * int((threadIdx_x % 4) / 4) + (threadIdx_x % 32) % 4
 c_sh_wr += 32*int(threadIdx_x/32)
 c_sh_rd = c_sh_stride * int(threadIdx_x/(2*thread_n_blocks)) + (threadIdx_x % (2*thread_n_blocks))
 c_gl_wr_end = c_gl_stride * prob_m
@@ -23,6 +23,7 @@ c_gl_wr_end = c_gl_stride * prob_m
 if threadIdx_x / 32 < thread_n_blocks / 4:
     for i in range(thread_m_blocks):
         for j in range(4):
+            #import pdb; pdb.set_trace()
             wr = c_sh_wr + 8*j
             print(f"{int(c_sh_wr)=}")
             print(f"{int(wr+(4*c_sh_stride) * 0 + 0)=:4}, frag_c[{i}][{j}][{0}][{0}], frag_c[{i}][{j}][{0}][{1}] frag_s[{int(j/2)}][{2*(j%2)+0}]")
