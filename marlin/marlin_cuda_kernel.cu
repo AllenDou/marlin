@@ -729,6 +729,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
 
       #pragma unroll
       for (int i = 0; i < thread_m_blocks * 4; i++) {
+          // 见笔记 write页面, 一个线程一个Csubtile出4个数, 一共thread_m_blocks * 4个数, 每个数都会从后边出8个数.
         if (i < (thread_m_blocks - 1) * 4 || 8 * (i / 2) + row < prob_m/*64*/) {
           // 看不懂上面这个if含义, 但是通过计算, 当thread0-255时, if 都成立.
           if (!first) {
@@ -754,7 +755,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
             // 答案是'不行', 因为上下两部分的数据 分别被两个不同的sm处理, shared memory是不在sm间共享的!!!
             // 顺便补充下, shared memory是在sm内 各个thread 共享的.
             // L1 是每个sm的thread 单独独享的, 其他thread不能访问.
-            C[c_gl_wr + c_gl_wr_delta_o * (i / 2) + c_gl_wr_delta_i * (i % 2)] = c;
+            C[c_gl_wr + c_gl_wr_delta_o/*4096*/ * (i / 2) + c_gl_wr_delta_i/*16*/ * (i % 2)] = c;
           }
         }
       }

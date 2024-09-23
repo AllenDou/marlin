@@ -3,13 +3,13 @@ thread_n_blocks = 16
 prob_n = 4096
 prob_m = 64
 # when global_reduce, slice_col slice_row should not be 0/0
-slice_col = 2
-slice_row = 52
+slice_col = 0
+slice_row = 0
 
 
 threadIdx_x=0
-first = False
-last = True
+first = True
+last = False
 
 active_threads = int(32 * thread_n_blocks / 4)
 
