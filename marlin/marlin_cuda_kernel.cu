@@ -729,7 +729,8 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
 
       #pragma unroll
       for (int i = 0; i < thread_m_blocks * 4; i++) {
-          // 见笔记 write页面, 一个线程一个Csubtile出4个数, 一共thread_m_blocks * 4个数, 每个数都会从后边出8个数.
+          // 见笔记 write页面, 一个线程一个Csubtile出4个数(见tensor core 的C, 一个线程的frag_c hold4个数),
+          // 一共thread_m_blocks * 4个数, 每个数都会从后边出8个数.
         if (i < (thread_m_blocks - 1) * 4 || 8 * (i / 2) + row < prob_m/*64*/) {
           // 看不懂上面这个if含义, 但是通过计算, 当thread0-255时, if 都成立.
           if (!first) {
