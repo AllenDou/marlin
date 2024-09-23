@@ -712,8 +712,11 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       if (!first) {
         // Interestingly, doing direct global accesses here really seems to mess up the compiler and lead to slowdowns,
         // hence we also use async-copies even though these fetches are not actually asynchronous.
+
+        // 这部分后后执行, 因为要等待一个slice底下的先reduce完.
         #pragma unroll
         for (int i = 0; i < thread_m_blocks * 4; i++) {
+          // 从global memory cp到shared memory
           cp_async4_pred(
             &sh[c_sh_wr + c_sh_wr_delta * i],
             &C[c_gl_wr + c_gl_wr_delta_o * (i / 2) + c_gl_wr_delta_i * (i % 2)],
@@ -728,6 +731,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       for (int i = 0; i < thread_m_blocks * 4; i++) {
         if (i < (thread_m_blocks - 1) * 4 || 8 * (i / 2) + row < prob_m/*64*/) {
           if (!first) {
+            // shared memory cp到 frag_c
             int4 c_red = sh[c_sh_wr + i * c_sh_wr_delta];
             #pragma unroll
             for (int j = 0; j < 2 * 4; j++) {
@@ -744,6 +748,8 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
                 reinterpret_cast<float*>(&frag_c)[4 * 2 * 4 * (i / 4) + 4 * j + (i % 4)]
               );
             }
+            // frag_c cp到global memory中, 这块代码先执行, 因为在slice的下面, 上面被锁住了.
+            // 这块有个优化点, 是不是可以 cp到 shared memory?
             C[c_gl_wr + c_gl_wr_delta_o * (i / 2) + c_gl_wr_delta_i * (i % 2)] = c;
           }
         }
