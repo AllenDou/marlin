@@ -730,6 +730,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       #pragma unroll
       for (int i = 0; i < thread_m_blocks * 4; i++) {
         if (i < (thread_m_blocks - 1) * 4 || 8 * (i / 2) + row < prob_m/*64*/) {
+          // 看不懂上面这个if含义, 但是通过计算, 当thread0-255时, if 都成立.
           if (!first) {
             // shared memory cp到 frag_c
             int4 c_red = sh[c_sh_wr + i * c_sh_wr_delta];
