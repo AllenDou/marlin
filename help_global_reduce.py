@@ -3,8 +3,8 @@ thread_n_blocks = 16
 prob_n = 4096
 prob_m = 64
 # when global_reduce, slice_col slice_row should not be 0/0
-slice_col = 0
-slice_row = 0
+slice_col = 2
+slice_row = 52
 
 
 threadIdx_x=0
@@ -40,4 +40,4 @@ if threadIdx_x < active_threads:
       if not last:
         for j in range(4*2):
           print(f"c[{j}] = frag_c[{4 * 2 * 4 * int(i / 4) + 4 * j + (i % 4)=}]")
-        print(f"{threadIdx_x=:3} {i=:2} C[{c_gl_wr+c_gl_wr_delta_o*int(i/2)+c_gl_wr_delta_i*(i%2)}] = c(int4)")
+        print(f"{threadIdx_x=:3} {i=:2} C[{c_gl_wr+c_gl_wr_delta_o*int(i/2)+c_gl_wr_delta_i*(i%2)=}] = c(int4)")
