@@ -751,6 +751,8 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
             // frag_c cp到global memory中, 这块代码先执行, 因为在slice的下面, 上面被锁住了.
             // 这块有个优化点, 是不是可以 cp到 shared memory?
             // 答案是'不行', 因为上下两部分的数据 分别被两个不同的sm处理, shared memory是不在sm间共享的!!!
+            // 顺便补充下, shared memory是在sm内 各个thread 共享的.
+            // L1 是每个sm的thread 单独独享的, 其他thread不能访问.
             C[c_gl_wr + c_gl_wr_delta_o * (i / 2) + c_gl_wr_delta_i * (i % 2)] = c;
           }
         }
