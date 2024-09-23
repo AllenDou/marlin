@@ -708,6 +708,8 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       int c_sh_wr = threadIdx.x;
 
       int row = (threadIdx.x % 32) / 4; // 0 - 7
+        // 这里的 %32 是32个thread 是一个warp.
+        // /4 的意思是 见tensor core C subtile的layout, 一行只有4个线程
 
       if (!first) {
         // Interestingly, doing direct global accesses here really seems to mess up the compiler and lead to slowdowns,
