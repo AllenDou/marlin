@@ -704,6 +704,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       int c_gl_wr_delta_i/*16*/ = 4 * (active_threads/*128*/ / 32);
       int c_gl_wr = c_gl_stride/*512*/ * ((threadIdx.x % 32) / 4) + 4 * (threadIdx.x / 32) + threadIdx.x % 4;
       c_gl_wr += (2 * thread_n_blocks/*16*/) * slice_col;
+            // 这个 2 * thread_n_blocks 应该是 thread_n_blocks * 16/8 的意思.
       constexpr int c_sh_wr_delta /*128*/ = active_threads/*128*/;
       int c_sh_wr = threadIdx.x;
 
@@ -751,6 +752,8 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
             for (int j = 0; j < 2 * 4; j++) {
               reinterpret_cast<__half*>(&c)[j] = __float2half(
                 reinterpret_cast<float*>(&frag_c)[4 * 2 * 4 * (i / 4) + 4 * j + (i % 4)]
+                // i/4的意思是第几个m, 一共有thread_m_block=4个
+                // 4*j的意思一个C-subtile向右移动一个subtile 是4个float 相当于8个fp16
               );
             }
             // frag_c cp到global memory中, 这块代码先执行, 因为在slice的下面, 上面被锁住了.
