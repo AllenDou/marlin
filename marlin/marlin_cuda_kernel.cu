@@ -702,8 +702,10 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       int c_gl_stride/*512 int4*/ = prob_n/*4096*/ / 8;
       int c_gl_wr_delta_o/*4096 int4*/ = 8 * c_gl_stride;
       int c_gl_wr_delta_i/*16*/ = 4 * (active_threads/*128*/ / 32);
-            // 见 tensor core layout的Csubtile, 这里的4 是 一行有4个线程, 每个线程写一个int4, 一个warp 一行4个线程, 就写4个int4
-            // C tile一行一共有4个warp, 因此写 4*4个int4
+            // 这个4* 可以写成  4*8/8 意思是, 4个线程, 每个线程拿一个fp16(两个里只取一个), 再转成int4.
+            // 另一种解释,
+            // 见 tensor core layout的Csubtile, 这里的4 是 当前线程把一行8个Csubtile里的两个数的第一个数拿出来合成一个int4
+            // 一个warp 一行4个线程, 就写4个int4, C tile一行一共有4个warp, 因此写 4*4个int4
       int c_gl_wr = c_gl_stride/*512*/ * ((threadIdx.x % 32) / 4) + 4 * (threadIdx.x / 32) + threadIdx.x % 4;
             // 先看tensor core的C的layout, 这里的 % 32指的是当前这个thread是一个warp的里的第几个, 
             // /4的意思是, 当前这个thread 是第几行, 因为tensor core C的layout里 一行有4个thread
