@@ -156,7 +156,7 @@ class Layer(nn.Module):
         w = w.reshape((self.k // tile, self.n * tile))
         res = w
         res_shape = w.shape
-        import pdb; pdb.set_trace()
+        #import pdb; pdb.set_trace()
         res = res.reshape((-1, _perm.numel()))
         res = res[:, _perm]
         res = res.reshape(res_shape)

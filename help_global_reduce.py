@@ -7,7 +7,7 @@ slice_col = 2
 slice_row = 52
 
 
-threadIdx_x=0
+threadIdx_x=1
 first = True
 last = False
 
