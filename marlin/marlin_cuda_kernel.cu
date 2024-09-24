@@ -652,6 +652,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
           if (i <= red_idx && red_idx < 2 * i) { // for threadIdx.x=128-255, 这些线程把frag_c写到sh
             //#pragma unroll
             for (int j = 0; j < 4 * 2; j++) {
+              // 这里的4*2的意思是一个warp处理4列subtile数据, 每个subtile包含两个 m16n8k16.
               int red_sh_wr = red_sh_delta/*128*/ * j + (red_sh_rd/*by threadIdx.x*/ - red_sh_stride/*1024*/ * i/*1*/);
               //if (i < red_off/*1*/) { /* this if statement is not runnning because i(1) < red_off(1) is false. */
               //  float* c_rd = reinterpret_cast<float*>(&sh[red_sh_delta * j + red_sh_rd]);
@@ -711,6 +712,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
             // /4的意思是, 当前这个thread 是第几行, 因为tensor core C的layout里 一行有4个thread
             // /32的意思是第几个warp
             // %4的意思是当前这个thread在所在行的第几个, 见tensor core 的layout, 一行只有4个, 也就是取0,1,2,3
+            // 这个 4* 和上面 c_gl_wr_delta_i 的 4* 意思一样 ??
       c_gl_wr += (2 * thread_n_blocks/*16*/) * slice_col;
             // 这个 2 * thread_n_blocks 应该是 thread_n_blocks * 16/8 的意思.
       constexpr int c_sh_wr_delta /*128*/ = active_threads/*128*/;
@@ -740,6 +742,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
 
       #pragma unroll
       for (int i = 0; i < thread_m_blocks * 4; i++) {
+          // 当前这个for循环实际上是对当前线程 <float,4>frag_c[4][4][2] hold住的fp数据的循环
           // 见笔记 write页面, 一个线程一个Csubtile出4个数(见tensor core 的C, 一个线程的frag_c hold4个数),
           // 一共thread_m_blocks * 4个数, 每个数都会从后边出8个数.
         if (i < (thread_m_blocks - 1) * 4 || 8 * (i / 2) + row < prob_m/*64*/) {
