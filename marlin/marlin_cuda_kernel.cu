@@ -588,7 +588,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
       // 前128个线程里的其中0-31和32-63和64-95和96-127 load的数据是一样的
       // 后128个线程里的0-31和32-63和64-95和96-127 load的数据是一样的
       // 这时候要看 ldmatrix 的文档, ldmatrix一次两个tensor core的Bsubtile.
-      ldsm4(frag_a[k % 2][i], &sh_a_stage[a_sh_rd_trans[k % b_sh_wr_iters][i] /*by threadIdx.x */]);
+      ldsm4(frag_a[k % 2][i], &sh_a_stage[a_sh_rd_trans[k % b_sh_wr_iters/*2*/][i] /*by threadIdx.x */]);
       // load 一次是 4个half2, 也就是16B, 这个16B是跟里面的x4有关系, 如果是x1的话就是4B, 就是一个uint32_t的size.
     }
 
