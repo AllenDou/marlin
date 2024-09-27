@@ -1,0 +1,35 @@
+T0      T0R0      T1R0     T2R0     T3R0   # 简单说就是在ldmatrix x4 时, T0 load到的8个fp16, 要给T0 T1 T2 T3的register0
+T1      T4R0      T5R0     T6R0     T7R0   # T1 load到的8个fp16, 要给T4 T5 T6 T7的register0
+T2      T8R0      T9R0    T10R0    T11R0   # T8 load到的8个fp16 要给T0 T1 T2 T3的register1,
+T3     T12R0     T13R0    T14R0    T15R0   # ldmatrix并不是各自load各自的, 要1帮助4(有可能含自己)
+T4     T16R0     T17R0    T18R0    T19R0
+T5     T20R0     T21R0    T22R0    T23R0
+T6     T24R0     T25R0    T26R0    T27R0
+T7     T28R0     T29R0    T30R0    T31R0
+
+T8      T0R1      T1R1     T2R1     T3R1
+T9      T4R1      T5R1     T6R1     T7R1
+T10     T8R1      T9R1    T10R1    T11R1
+T11    T12R1     T13R1    T14R1    T15R1
+T12    T16R1     T17R1    T18R1    T19R1
+T13    T20R1     T21R1    T22R1    T23R1
+T14    T24R1     T25R1    T26R1    T27R1
+T15    T28R1     T29R1    T30R1    T31R1
+
+T16     T0R2      T1R2     T2R2     T3R2
+T17     T4R2      T5R2     T6R2     T7R2
+T18     T8R2      T9R2    T10R2    T11R2
+T19    T12R2     T13R2    T14R2    T15R2
+T20    T16R2     T17R2    T18R2    T19R2
+T21    T20R2     T21R2    T22R2    T23R2
+T22    T24R2     T25R2    T26R2    T27R2
+T23    T28R2     T29R2    T30R2    T31R2
+                                        
+T24     T0R3      T1R3     T2R3     T3R3
+T25     T4R3      T5R3     T6R3     T7R3
+T26     T8R3      T9R3    T10R3    T11R3
+T27    T12R3     T13R3    T14R3    T15R3
+T28    T16R3     T17R3    T18R3    T19R3
+T29    T20R3     T21R3    T22R3    T23R3
+T30    T24R3     T25R3    T26R3    T27R3
+T31    T28R3     T29R3    T30R3    T31R3
