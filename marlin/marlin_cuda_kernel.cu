@@ -1063,6 +1063,7 @@ int marlin_cuda(
     CALL_IF(3, 16,  4,  8)
     CALL_IF(4, 16,  4, -1)
     CALL_IF(4, 16,  4,  8)
+    CALL_IF(64, 16,  4,  8)
     else
       ret = ERR_KERN_SHAPE;
 
