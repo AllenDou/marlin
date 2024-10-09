@@ -950,7 +950,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
 // latency hiding. At the same time, we want relatively few warps to have many registers per warp and small tiles.
 const int THREADS = 256;
 const int STAGES = 4; // 4 pipeline stages fit into shared memory
-const int SHARED_MEM = 96 * 1024; // max shared memory on compute capability 8.6 (< 8.0)
+const int SHARED_MEM = 98 * 1024; // max shared memory on compute capability 8.6 (< 8.0)
 
 // CALL_IF(4, 16,  4,  8)
 #define CALL_IF(THREAD_M_BLOCKS/*4*/, THREAD_N_BLOCKS/*16*/, THREAD_K_BLOCKS/*4*/, GROUP_BLOCKS/*8*/) \
