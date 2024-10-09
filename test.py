@@ -165,7 +165,8 @@ class Test(unittest.TestCase):
             for threadidx in range(0,user_specified_threadidx ):
                 #for m in [16]:
                 #for m in [1024]:
-                for m in [16384]:
+                #for m in [16384]:
+                for m in [2048]:
                     for groupsize in [128]:
                         for n, k in [(4096, 4096)]:
                             for thread_shape in [(64, 256)]:

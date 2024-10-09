@@ -990,9 +990,9 @@ int marlin_cuda(
   int user_specified_blockidx = 0,
   int user_specified_threadidx = 0
 ) {
-  int tot_m = prob_m; // 16384
-  int tot_m_blocks = ceildiv(tot_m, 16); // 16384/16 = 1024
-  int pad = 16 * tot_m_blocks - tot_m; // 16*1024 - 16384 = 0
+  int tot_m = prob_m; // 2048
+  int tot_m_blocks = ceildiv(tot_m, 16); // 2048/16 = 128
+  int pad = 16 * tot_m_blocks - tot_m; // 16*128 - 2048 = 0
 
   if (sms == -1)
     cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, dev); // L20: sms = 92
@@ -1031,18 +1031,18 @@ int marlin_cuda(
                                  // 512 个 0
 
   int ret = 0;
-  for (int i = 0; i < tot_m_blocks/*1024*/; i += 64) {
-    int thread_m_blocks = tot_m_blocks/*1024*/ - i;
-    prob_m = tot_m/*16384*/ - 16 * i;
+  for (int i = 0; i < tot_m_blocks/*128*/; i += 8) {
+    int thread_m_blocks = tot_m_blocks/*128*/ - i;
+    prob_m = tot_m/*2048*/ - 16 * i;
     int par = 1;
-    if (thread_m_blocks > 64) {
+    if (thread_m_blocks > 8) {
       // Note that parallel > 1 currently only works for inputs without any padding
-      par = (16 * thread_m_blocks - pad) / (64*16);
+      par = (16 * thread_m_blocks - pad) / (8*16);
       if (par > max_par/*16*/)
         par = max_par/*16*/;
-      prob_m = 1024 * par;
-      i += 64 * (par - 1);
-      thread_m_blocks = 64;
+      prob_m = 128 * par;
+      i += 8 * (par - 1);
+      thread_m_blocks = 8;
     }
 
     if (print_enable) {
@@ -1063,8 +1063,8 @@ int marlin_cuda(
     CALL_IF(3, 16,  4,  8)
     CALL_IF(4, 16,  4, -1)
     CALL_IF(4, 16,  4,  8)
-    CALL_IF(64, 16,  4, -1)
-    CALL_IF(64, 16,  4,  8)
+    CALL_IF(8, 16,  4, -1)
+    CALL_IF(8, 16,  4,  8)
     else
       ret = ERR_KERN_SHAPE;
 
