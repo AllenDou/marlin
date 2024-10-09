@@ -995,6 +995,10 @@ int marlin_cuda(
   int user_specified_blockidx = 0,
   int user_specified_threadidx = 0
 ) {
+  int max_shared_mem = 0;
+  cudaDeviceGetAttribute(&max_shared_mem,
+                         cudaDevAttrMaxSharedMemoryPerBlockOptin, dev);
+
   int tot_m = prob_m; // 2048
   int tot_m_blocks = ceildiv(tot_m, 16); // 2048/16 = 128
   int pad = 16 * tot_m_blocks - tot_m; // 16*128 - 2048 = 0

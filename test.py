@@ -166,7 +166,8 @@ class Test(unittest.TestCase):
                 #for m in [16]:
                 #for m in [1024]:
                 #for m in [16384]:
-                for m in [2048]:
+                #for m in [2048]:
+                for m in [25600]:
                     for groupsize in [128]:
                         for n, k in [(4096, 4096)]:
                             for thread_shape in [(64, 256)]:
