@@ -501,6 +501,7 @@ b_sh_rd_delta=%d b_sh_stage=%d b_sh_wr_iters=%d s_gl_stride=%d s_sh_stride=%d s_
   int4* sh_a = sh;
   int4* sh_b = sh_a + (stages/*4*/ * a_sh_stage/*512*/);
   int4* sh_s = sh_b + (stages/*4*/ * b_sh_stage/*512*/);
+  int4* sh_end = sh_s + (stages/*4*/ * s_sh_stage/*32*/);
   // Register storage for double buffer of shared memory reads. 
   //using FragA = Vec<half2, 4>;
   /*Vec<half2, 4>*/ FragA frag_a[2][thread_m_blocks/*4*/];
