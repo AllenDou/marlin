@@ -131,6 +131,7 @@ int main(int argc, char* argv[])
     CHECK_CUDA_ERROR(cudaGetDevice(&current_device));
     CHECK_CUDA_ERROR(cudaGetDeviceProperties(&device_prop, current_device));
     std::cout << "GPU: " << device_prop.name << std::endl;
+    std::cout << "SharedMemPerBlock: " << device_prop.sharedMemPerBlock << std::endl;
     std::cout << "L2 Cache Size: " << device_prop.l2CacheSize / 1024 / 1024
               << " MB" << std::endl;
     std::cout << "Max Persistent L2 Cache Size: "
