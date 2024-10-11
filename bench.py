@@ -60,6 +60,8 @@ elif '3090' in gpu:
     SMS = 82
 elif 'A6000' in gpu:
     SMS = 84
+elif 'L20' in gpu:
+    SMS = 92
 else:
     SMS = -1
 
