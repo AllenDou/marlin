@@ -1,5 +1,6 @@
 row/col     global memory A                    shared memory A
                                             bank 0-3 4-7  ----------------- 28-31  nvidia gpu的shared memory 共有32个bank
+                                               以下一行是128B, 也就是32个bank * 4B = 128B
 m=0  |0       0   1   2   3   4   5   6   7        0   1   2   3   4   5   6   7
      |1       8   9  10  11  12  13  14  15        9   8  11  10  13  12  15  14
      |2      16  17  18  19  20  21  22  23       18  19  16  17  22  23  20  21
