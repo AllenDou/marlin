@@ -1019,7 +1019,7 @@ int marlin_cuda(
 
   int thread_k_blocks = 4;  //thread_k / 16; // 64/16 = 4
   int thread_n_blocks = 16; //thread_n / 16; // 256/16 = 16
-  int group_blocks = (groupsize == -1) ? -1 : groupsize / 16; // 128/16 = 8
+  int group_blocks = (groupsize == -1) ? -1 : groupsize / 16; // 128/16 = 8, 1个block 盛下16个fp16
   int blocks = sms; // = 92
 
 
