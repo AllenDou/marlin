@@ -164,10 +164,10 @@ class Test(unittest.TestCase):
         for blockidx in range(user_specified_blockidx-1,user_specified_blockidx):
             for threadidx in range(0,user_specified_threadidx ):
                 #for m in [16]:
-                #for m in [1024]:
-                for m in [8]:
+                for m in [1024]:
+                #for m in [2048]:
                     for groupsize in [128]:
-                        for n, k in [(5120, 51200)]:
+                        for n, k in [(4096, 4096)]:
                             for thread_shape in [(64, 256)]:
                                 self.run_problem(m, n, k, *thread_shape, groupsize, print_enable, blockidx, threadidx)
 

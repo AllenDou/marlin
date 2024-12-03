@@ -304,6 +304,7 @@ k_tiles=%d n_tiles=%d parallel=%d", \
     if (slice_col == n_tiles) {
       A += 16 * thread_m_blocks /*4*/ * prob_k / 8; // move A point to next A
       C += 16 * thread_m_blocks /*4*/ * prob_n / 8; // move C point to next C
+      // / 8 是一个int4 等于8个fp16
       locks += n_tiles;
       slice_col = 0;
     }
