@@ -301,7 +301,7 @@ k_tiles=%d n_tiles=%d parallel=%d", \
           slice_idx--;
       }
     }
-    if (slice_col == n_tiles) {
+    if (slice_col == n_tiles) { // 这个情况是 一个sm 处理了 跨A&&B的场景, 跨B是虚跨, 跨A是物理跨
       A += 16 * thread_m_blocks /*4*/ * prob_k / 8; // move A point to next A
       C += 16 * thread_m_blocks /*4*/ * prob_n / 8; // move C point to next C
       // / 8 是一个int4 等于8个fp16
